@@ -2558,7 +2558,7 @@ function pdfParsePages(pages){
     rows.forEach(function(r){r.cells.sort(function(a,b){return a.x-b.x})});
     return rows;
   }
-  var out={races:[],classes:[],skills:[],spells:[],backgrounds:[],mobs:[],debuffs:[]};
+  var out={races:[],classes:[],skills:[],spells:[],backgrounds:[],mobs:[],debuffs:[],items:[]};
 
   /* ---------- races & classes ---------- */
   (function(){
@@ -2801,6 +2801,55 @@ function pdfParsePages(pages){
       return {name:clean(d.name),effect:eff,duration:clean(d.duration),stackable:/\bStackable\b/i.test(eff)?"yes":"no",page:String(d.page)};
     }).filter(function(d){return d.name&&d.effect&&d.name!=="DEBUFF NAME"});
   })();
+
+  /* ---------- items: magic gear ("NAME" / "Gear Slot: X" / effect) and the
+     contents lists in each loot-box section ("GOLD BOXES": "• Item (effect)") ---------- */
+  (function(){
+    var TIERS="Bronze|Silver|Gold|Platinum|Legendary|Celestial";
+    function tier(x){return x?x.charAt(0).toUpperCase()+x.slice(1).toLowerCase():""}
+    var gearRarity="", boxTier="", L=lines.map(function(l){return {x:l.x,z:l.z,page:l.page,t:clean(l.s)}});
+    function isSlot(t){return /^Gear Slot:/i.test(t)}
+    function slotSoon(i){for(var k=i+1;k<=i+3&&k<L.length;k++){if(isSlot(L[k].t))return true;if(!isCaps(L[k].t))return false}return false}
+    for(var i=0;i<L.length;i++){
+      var l=L[i], t=l.t, hm;
+      if((hm=t.match(new RegExp("^Sample Magical Gear From ("+TIERS+") Boxes","i")))){gearRarity=tier(hm[1]);boxTier="";continue}
+      if(l.z>=15&&isCaps(t)&&!slotSoon(i)){
+        var bm=t.match(new RegExp("^("+TIERS+") BOXES$","i")); boxTier=bm?tier(bm[1]):""; if(!bm)gearRarity=""; continue;
+      }
+      if(isSlot(t)){
+        var nm=[], j=i-1;
+        while(j>=0&&isCaps(L[j].t)&&Math.abs(L[j].x-l.x)<4&&nm.length<3){nm.unshift(L[j].t);j--}
+        if(!nm.length)continue;
+        var slot=t.replace(/^Gear Slot:\s*/i,""), eff=[], k=i+1;
+        for(;k<L.length;k++){
+          var q=L[k];
+          if(q.z>=12&&!(isCaps(q.t)&&slotSoon(k)))break;
+          if(isCaps(q.t)&&q.t.length>3&&slotSoon(k))break;
+          if(/^Sample Magical Gear/i.test(q.t))break;
+          eff.push(q.t);
+        }
+        /* a name that wraps at a hyphen ("ELBOW-" / "WALKING") joins without a space */
+        var nmJoined=nm.reduce(function(a,b){return a?(/-$/.test(a)?a+b:a+" "+b):b},"");
+        out.items.push({name:titleCase(nmJoined),category:"Gear",slot:slot,weight:"",rarity:gearRarity,
+          effect:clean(eff.join(" ").replace(/\s*•\s*/g," \u2022 ")),notes:"",page:String(l.page)});
+        i=k-1; continue;
+      }
+      if(boxTier&&(t==="•"||/^•/.test(t))){
+        var txt=t.replace(/^•\s*/,""), k2=i+1;
+        while(k2<L.length&&L[k2].x>l.x+4&&!/^•/.test(L[k2].t)&&L[k2].z<12){txt+=" "+L[k2].t;k2++}
+        txt=clean(txt); i=k2-1;
+        if(!txt||/^And\b/i.test(txt)||/\bGold$/i.test(txt))continue;
+        /* skip descriptions of what a box might hold, rather than actual items */
+        if(/^(An? (interesting|random)\b|Various\b|Items that\b|Overpowered\b|Life-Altering\b|Divine Items\b|Potions that\b)/i.test(txt))continue;
+        var pm=txt.match(/^(.*?)\s*\((.*)\)\s*$/), name=pm?pm[1]:txt, eff2=pm?pm[2]:"";
+        if(/,.*\bor\b/.test(name))continue;                       /* "Crafting, Sapper, ... or Metal Working Table": a choice, not an item */
+        var qty="", qm=name.match(/^(\d+d\d+(?:\s*[\u00d7x]\s*\d+)?|\d+)\s+(.+)$/);
+        if(qm){qty=qm[1];name=qm[2]}
+        var cat=/potion/i.test(name)?"Potion":/scroll/i.test(name)?"Scroll":/spellbook/i.test(name)?"Spellbook":/table$/i.test(name)?"Crafting table":"Loot";
+        out.items.push({name:name,category:cat,slot:"",weight:"",rarity:boxTier,effect:eff2,notes:(qty?"A box gives "+qty+". ":"")+"From "+boxTier+" boxes.",page:String(l.page)});
+      }
+    }
+  })();
   /* A book can print the same entry twice (an adventure repeating a stat
      block): keep one copy, preferring the most complete. But different
      stat blocks can share a name (a mob at level 4 and again at level 8),
@@ -2829,13 +2878,13 @@ function pdfParsePages(pages){
 }
 
 /* Reads any of your rulebook PDFs in this browser with pdf.js and finds the
-   races, classes, skills, spells, backgrounds, mobs and debuffs in it.
+   races, classes, skills, spells, backgrounds, mobs, debuffs and items in it.
    Nothing is uploaded anywhere: the book stays on this device, and what's
    found goes only into this browser's library. */
 var PDFJS_VER="6.3.289";
 var PDFJS_BASE="https://cdn.jsdelivr.net/npm/pdfjs-dist@"+PDFJS_VER+"/legacy/build/";
 var PDF_KINDS=[["races","Races","race"],["classes","Classes","class"],["skills","Skills","skill"],["spells","Spells","spell"],
-               ["backgrounds","Backgrounds","background"],["mobs","Mobs","mob"],["debuffs","Debuffs","debuff"]];
+               ["backgrounds","Backgrounds","background"],["mobs","Mobs","mob"],["debuffs","Debuffs","debuff"],["items","Items","item"]];
 var PDF_BIG=/^(abilities|drawbacks|description|attacks|notes|effect|limitations|up5|up10|up15)$/;
 var pdfImp=null;
 
@@ -2851,9 +2900,35 @@ async function loadPdfjs(){
   }catch(e){lib.GlobalWorkerOptions.workerSrc=PDFJS_BASE+"pdf.worker.min.mjs"}
   window.pdfjsLib=lib; return lib;
 }
-function pdfMsg(title,body){
+/* If the background worker can't start (some browsers and sandboxed previews
+   block it), load pdf.js's worker code onto the page itself: pdf.js then does
+   its work on the main thread instead. Slower on huge books, but it works. */
+async function loadPdfWorkerOnPage(){
+  if(window.pdfjsWorker&&window.pdfjsWorker.WorkerMessageHandler)return;
+  await import(PDFJS_BASE+"pdf.worker.min.mjs");
+}
+function pdfWhy(e){
+  var n=(e&&e.name)||"", m=(e&&e.message)||String(e||"");
+  if(n==="PasswordException")return "password";
+  if(n==="InvalidPDFException"||/Invalid PDF|No PDF header|not a PDF/i.test(m))return "invalid";
+  return "reader";
+}
+function pdfOpen(lib,file,onSlow){
+  var opts=function(buf){return {data:new Uint8Array(buf),disableFontFace:true,isEvalSupported:false}};
+  /* getDocument hands the bytes to the worker, so each attempt re-reads the file */
+  return file.arrayBuffer().then(function(buf){return lib.getDocument(opts(buf)).promise})
+    .catch(function(e){
+      if(pdfWhy(e)!=="reader")throw e;
+      if(onSlow)onSlow();
+      return loadPdfWorkerOnPage().then(function(){return file.arrayBuffer()})
+        .then(function(buf){return lib.getDocument(opts(buf)).promise});
+    });
+}
+function pdfMsg(title,body,detail){
   openModal('<h2 style="font-size:20px;margin-bottom:6px">'+esc(title)+'</h2>'
-    +'<p style="margin:0 0 14px">'+esc(body)+'</p><div style="display:flex;justify-content:flex-end">'
+    +'<p style="margin:0 0 14px">'+esc(body)+'</p>'
+    +(detail?'<p class="hint" style="margin:-6px 0 14px;word-break:break-word">Details: '+esc(detail)+'</p>':'')
+    +'<div style="display:flex;justify-content:flex-end">'
     +'<button class="btn" id="pdfDone">Close</button></div>');
   $("pdfDone").addEventListener("click",closeModal);
 }
@@ -2864,7 +2939,7 @@ function pdfHave(kind,name){
 $("libPdf").addEventListener("click",function(){
   openModal('<h2 style="font-size:22px;margin-bottom:4px">Import from your books</h2>'
     +'<p class="hint" style="margin:0 0 12px">Pick one of your rulebook PDFs. The manager reads it right here in your browser and finds any '
-    +'<b>races, classes, skills, spells, backgrounds, mobs and debuffs</b> in it, then shows you everything before anything is added. '
+    +'<b>races, classes, skills, spells, backgrounds, mobs, debuffs and items</b> in it, then shows you everything before anything is added. '
     +'The book is never uploaded anywhere.</p>'
     +'<p class="hint" style="margin:0 0 14px">Use a computer rather than a phone for the big books. The Core Rulebook takes about half a minute to read; the others a few seconds.</p>'
     +'<input type="file" id="pdfFile" accept="application/pdf,.pdf">'
@@ -2886,9 +2961,14 @@ async function runPdfImport(file){
   if(run.cancel)return;
   try{
     prog("Opening the file\u2026");
-    var buf=await file.arrayBuffer();
-    doc=await lib.getDocument({data:new Uint8Array(buf),disableFontFace:true,isEvalSupported:false}).promise;
-  }catch(e){return pdfMsg("That file couldn\u2019t be opened","It doesn\u2019t look like a readable PDF. Try one of the rulebook PDFs you downloaded.")}
+    doc=await pdfOpen(lib,file,function(){prog("Opening the file (using the slower reader this browser allows)\u2026")});
+  }catch(e){
+    if(run.cancel||pdfImp!==run)return;
+    var why=pdfWhy(e), detail=((e&&e.name)?e.name+": ":"")+((e&&e.message)||String(e||""));
+    if(why==="password")return pdfMsg("That PDF is password-protected","Open it in a PDF app, save an unlocked copy, and import that instead.",detail);
+    if(why==="invalid")return pdfMsg("That file couldn\u2019t be opened","It doesn\u2019t look like a readable PDF. Try one of the rulebook PDFs you downloaded.",detail);
+    return pdfMsg("The PDF reader couldn\u2019t start","Your file is probably fine, but this browser blocked the PDF reader. Try opening the manager from your GitHub link in Chrome, Edge, Firefox or Safari. If it still fails, send the details below to whoever maintains your manager.",detail);
+  }
   var pages=[];
   try{
     for(var p=1;p<=doc.numPages;p++){
@@ -2904,7 +2984,7 @@ async function runPdfImport(file){
   if(run.cancel||pdfImp!==run)return;
   var found=pdfParsePages(pages);
   var total=PDF_KINDS.reduce(function(n,k){return n+found[k[0]].length},0);
-  if(!total)return pdfMsg("Nothing to import in that PDF","The importer looks for races, classes, skills, spells, background tables, mob stat blocks and debuff tables. That book doesn\u2019t seem to contain any of them.");
+  if(!total)return pdfMsg("Nothing to import in that PDF","The importer looks for races, classes, skills, spells, background tables, mob stat blocks, debuff tables and magic items. That book doesn\u2019t seem to contain any of them.");
   var src=String(file.name||"").replace(/\.pdf$/i,"").replace(/[_-]+/g," ").trim();
   run.found=found; run.source=src; run.pick={}; run.open={};
   PDF_KINDS.forEach(function(k){found[k[0]].forEach(function(e,i){run.pick[k[0]+":"+i]=!pdfHave(k[0],e.name)})});
@@ -2920,6 +3000,7 @@ function pdfMeta(kind,e){
   else if(kind==="backgrounds")a=[e.stage,[e.skill1,e.skill2,e.skill3].filter(Boolean).join(", ")];
   else if(kind==="mobs")a=[e.tier,e.size,e.level?"level "+e.level:"",e.hbSlots?e.hbSlots+"\u00d7"+e.hbValue+" HB":""];
   else if(kind==="debuffs")a=[e.duration];
+  else if(kind==="items")a=[e.category,e.slot?e.slot+" slot":"",e.rarity];
   a.push("p. "+e.page);
   return a.filter(Boolean).join(" \u00b7 ");
 }
