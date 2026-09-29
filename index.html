@@ -2891,13 +2891,14 @@ var pdfImp=null;
 async function loadPdfjs(){
   if(window.pdfjsLib)return window.pdfjsLib;
   var lib=await import(PDFJS_BASE+"pdf.min.mjs");
-  /* A worker can only be started from this page's own origin, so wrap the
-     CDN worker in a same-origin blob; pdf.js falls back to the main thread
-     if even that is refused. */
-  try{
-    var blob=new Blob(['import "'+PDFJS_BASE+'pdf.worker.min.mjs";'],{type:"text/javascript"});
-    lib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(blob);
-  }catch(e){lib.GlobalWorkerOptions.workerSrc=PDFJS_BASE+"pdf.worker.min.mjs"}
+  /* Load pdf.js's worker code onto the page before opening anything. pdf.js
+     then does its reading right here instead of starting a background worker,
+     which some browsers and in-app viewers block (they refuse the "blob"
+     address a worker needs, and pdf.js remembers that failure for the rest of
+     the session). Reading on the page is a little slower, but works everywhere
+     the reader itself can load. */
+  await loadPdfWorkerOnPage();
+  lib.GlobalWorkerOptions.workerSrc=PDFJS_BASE+"pdf.worker.min.mjs";
   window.pdfjsLib=lib; return lib;
 }
 /* If the background worker can't start (some browsers and sandboxed previews
