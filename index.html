@@ -425,6 +425,7 @@ function migrate(c){
   if(c.classId===undefined)c.classId=null;
   if(c.statPoints==null)c.statPoints=0;
   if(c.animalKind==null)c.animalKind="";
+  if(!c.grants||typeof c.grants!=="object")c.grants={};
   if(!c.equipped)c.equipped=blankEquip();
   if(!c.equipped.accessories)c.equipped.accessories=["","","","","","","","","",""];
   if(c.gold==null)c.gold="";
@@ -1642,15 +1643,24 @@ function rollAllStages(){
   if(best)Object.keys(best).forEach(function(k){draft[k]=best[k]});
   return bestDupes===0;
 }
-function combatPool(kind){
+/* Skills and spells a class or race grants ("Clown College Alumni class
+   skill", "Tooth Fairy race spell") come with that class or race, so they
+   aren't offered at character creation. */
+function classOrRaceOnly(x){return /\b(class|race) (skill|spell)\b/i.test((x&&x.description)||"")}
+function combatPool(kind,animal){
   if(kind==="spell"){
-    var atk=S.library.spells.filter(function(sp){
-      return (sp.type||"").toLowerCase().indexOf("attack")>=0;
-    });
-    return atk.length?atk:S.library.spells;
+    var open=S.library.spells.filter(function(sp){return !classOrRaceOnly(sp)});
+    var atk=open.filter(function(sp){return (sp.type||"").toLowerCase().indexOf("attack")>=0});
+    return atk.length?atk:open;
+  }
+  var auto=animal?"slice attack":"unarmed combat";   /* already yours, free */
+  if(kind==="h2h"&&animal){
+    /* the rulebook: animal crawlers pick from the animal crawler & pet strike skills */
+    var strikes=S.library.skills.filter(function(sk){return /animal crawler|pet strike/i.test(sk.type||"")&&gNorm(sk.name)!==auto&&!classOrRaceOnly(sk)});
+    if(strikes.length)return strikes;
   }
   var word=(COMBAT_KINDS.find(function(k){return k[0]===kind})||COMBAT_KINDS[0])[2];
-  return skillsOfKind(word);
+  return skillsOfKind(word).filter(function(sk){return gNorm(sk.name)!==auto&&!classOrRaceOnly(sk)});
 }
 function optList(arr,sel,valKey,labKey){
   return arr.map(function(o){
@@ -1735,7 +1745,7 @@ function renderCreate(){
 
   /* ---- combat ---- */
   var kind=draft.combatKind||"weapon";
-  var pool=combatPool(kind);
+  var pool=combatPool(kind,animal);
   h+='<div class="bar" style="margin-top:20px"><h3>3 · How you fight</h3>'
     +'<span class="sp"></span><span class="hint">both at rank 3</span></div>';
   h+='<div class="grid g3">'
@@ -1743,10 +1753,10 @@ function renderCreate(){
     +(animal?"Slice Attack":"Unarmed Combat")+'</div>'
     +'<span class="hint">comes free with your species</span></div>'
     +'<div class="f"><span class="lab">Kind</span><select id="c_kind">'
-    +COMBAT_KINDS.map(function(k){return '<option value="'+k[0]+'"'+(kind===k[0]?" selected":"")+'>'+k[1]+'</option>'}).join("")
+    +COMBAT_KINDS.map(function(k){return '<option value="'+k[0]+'"'+(kind===k[0]?" selected":"")+'>'+(animal&&k[0]==="h2h"?"Animal strike":k[1])+'</option>'}).join("")
     +'</select><span class="hint">'
     +(kind==="spell"?"Needs Intelligence 4 or higher.":
-      kind==="h2h"?"Comes with a damage effect.":"Bashing, edged, ranged or reach.")+'</span></div>'
+      kind==="h2h"?(animal?"Bite and the other animal strikes.":"Wrasslin\u2019, Pugilism and the like."):"Bashing, edged, ranged or reach.")+'</span></div>'
     +'<div class="f"><span class="lab">Your pick'
     +(pool.length?' <button class="btn sm" data-rollcombat="1" style="padding:1px 7px;margin-left:6px">Roll</button>':'')
     +'</span>';
@@ -1761,6 +1771,9 @@ function renderCreate(){
         ? "add attack spells to the Spells library for a dropdown"
         : "tag library skills with this kind for a dropdown")+'</span>';
   }
+  if(kind==="weapon")h+='<div class="f" style="margin-top:8px"><span class="lab">What\u2019s the weapon? <span class="hint">(optional)</span></span>'
+    +'<input type="text" id="c_weaponName" value="'+esc(draft.weaponName||"")+'" placeholder="e.g. Tire Iron">'
+    +'<span class="hint">it goes in your Attacks as \u201cTire Iron (Club)\u201d, like the rulebook\u2019s example</span></div>';
   h+='</div></div>';
 
   /* ---- duplicate check ---- */
@@ -1831,6 +1844,7 @@ function collectDraft(){
   draft.name=g("c_name");draft.number=g("c_number");draft.pronouns=g("c_pronouns");
   draft.player=g("c_player");draft.weaponPick=g("c_weapon");
   if($("c_animalKind"))draft.animalKind=g("c_animalKind");
+  if($("c_weaponName"))draft.weaponName=g("c_weaponName");
   draft.trauma=g("c_trauma");draft.looseEnd=g("c_loose");draft.regret=g("c_regret");draft.lines=g("c_lines");
   draft.gear={clothing:g("c_clothing"),hand:g("c_hand"),item:g("c_item"),weird:g("c_weird")};
   STATS.forEach(function(s){draft.stats[s[0]]=g("st_"+s[0]);draft.enh[s[0]]=g("st_"+s[0])});
@@ -1900,7 +1914,7 @@ $("createBody").addEventListener("click",function(e){
   }else if(btn.dataset.rollall){
     rollAllStages();
   }else if(btn.dataset.rollcombat){
-    var pool2=combatPool(draft.combatKind||"weapon");
+    var pool2=combatPool(draft.combatKind||"weapon",draft.species==="animal");
     if(pool2.length)draft.weaponPick=pool2[Math.floor(Math.random()*pool2.length)].name;
   }else if(btn.dataset.rollstats){
     /* 1d6 per stat in order, rerolling 1s, no swapping afterwards */
@@ -1955,10 +1969,32 @@ function finalizeCreate(){
          all of which live in a single hotlist slot */
       c.inventory.push({id:uid(),name:"Standard Mana Potion",qty:5,weight:"",slot:"",
                         notes:"fully restores mana, one action to drink"});
+      /* the rulebook puts the spell itself in your Hotlist, too */
       var free=c.hotlist.indexOf("");
+      if(free>=0)c.hotlist[free]=pickName;
+      free=c.hotlist.indexOf("");
       if(free>=0)c.hotlist[free]="Standard Mana Potion ×5";
     }else{
       c.skills.push(newSkill(pickName,3));
+    }
+  }
+  /* The rulebook: write your combat weapon (or attack spell) in the Attacks
+     section as well as your Skills. Everyone's starting strike goes there too. */
+  if(!c.attacks)c.attacks=[];
+  function startAtk(row){if(!c.attacks.some(function(a){return gNorm(a.name)===gNorm(row.name)})){row.id=uid();c.attacks.push(row)}}
+  var baseName=c.species==="animal"?"Slice Attack":"Unarmed Combat", bl=gLib("skills",baseName);
+  var bd=gDamage(bl&&bl.damage)||gDamage(baseName==="Slice Attack"?"1d4 + Str Slashing":"1d4 + Str Bludgeoning");
+  startAtk({name:baseName,hitRank:"3",hitStat:(bl&&bl.stat)||(baseName==="Slice Attack"?"dex":"str"),dmgDice:bd.dice,dmgStat:bd.stat,effects:bd.type});
+  if(c.weaponPick&&c.weaponPick.trim()){
+    var wp=c.weaponPick.trim();
+    if(c.combatKind==="spell"){
+      var ls=gLib("spells",wp), sd=gDamage(ls&&ls.damage)||{dice:"",stat:"",type:""}, sst="";
+      String((ls&&ls.type)||"").split(/[,\s]+/).forEach(function(wd){if(!sst&&G_STATS[wd.toLowerCase()]&&wd.length>3)sst=G_STATS[wd.toLowerCase()]});
+      sst=sst||sd.stat||"int";
+      startAtk({name:ls?ls.name:wp,hitRank:"3",hitStat:sst,dmgDice:sd.dice,dmgStat:sd.stat||sst,effects:[sd.type,"spell"].filter(Boolean).join("; ")});
+    }else{
+      var lk=gLib("skills",wp), kd=gDamage(lk&&lk.damage)||{dice:"",stat:"",type:""}, wn=(c.weaponName||"").trim();
+      startAtk({name:wn?wn+" ("+(lk?lk.name:wp)+")":(lk?lk.name:wp),hitRank:"3",hitStat:(lk&&lk.stat)||"",dmgDice:kd.dice,dmgStat:kd.stat,effects:kd.type});
     }
   }
   c.aiFavor=c.species==="animal"?0:1;
@@ -3354,6 +3390,11 @@ function renderSheet(){
         +pool.slice().sort(function(x,y){return (x.name||"").localeCompare(y.name||"")}).map(function(o){
           return '<option value="'+o.id+'"'+(curId===o.id?" selected":"")+'>'+esc(o.name)+'</option>'}).join("")
         +'</select>';
+      if(curId&&!tutorial){
+        h+=c.grants[key]
+          ?'<span class="hint" style="display:flex;gap:8px;align-items:center;margin-top:4px">Bonuses applied to your sheet <button class="btn sm" data-ungrant="'+key+'">Remove bonuses</button></span>'
+          :'<span class="hint" style="margin-top:4px"><button class="btn sm" data-grant="'+key+'">Apply its bonuses\u2026</button></span>';
+      }
     }else{
       h+='<input type="text" data-f="'+key+'" value="'+esc(c[key])+'" placeholder="'+(tutorial?"Unlocks on Floor 3":"Type it in")+'"'+(tutorial?" disabled":"")+'>'
         +'<span class="hint">add entries to the '+label+' library for a dropdown</span>';
@@ -3635,6 +3676,293 @@ function renderSheet(){
 
   $("sheetBody").innerHTML=h;
 }
+/* ---------------- race & class bonuses applied to the sheet ---------------- */
+/* Reads a race or class entry's bonus text into concrete changes, applies them
+   to the character, and records exactly what it changed so a later switch or
+   removal can undo it cleanly. */
+var G_STATS={str:"str",strength:"str",int:"int",intelligence:"int",con:"con",constitution:"con",
+             dex:"dex",dexterity:"dex",cha:"cha",charisma:"cha"};
+var G_STATNAME={str:"Strength",int:"Intelligence",con:"Constitution",dex:"Dexterity",cha:"Charisma"};
+function gNorm(s){return String(s||"").toLowerCase().replace(/[\u2019\u2018`]/g,"'").replace(/\s+/g," ").trim()}
+function gLib(kind,name){var n=gNorm(name);return S.library[kind].find(function(x){return gNorm(x.name)===n})||null}
+function gCleanName(s){
+  return String(s||"").replace(/\s+(?:Skill\s+)?with\s+(?:a|an|the)\s+[\s\S]*?specialty\b.*$/i,"").replace(/\(.*?\)/g,"").replace(/,?\s*which\b.*$/i,"")
+    .replace(/^\s*(?:to|in|the)\s+/i,"").replace(/^\s*(?:to|in|the)\s+/i,"")
+    .replace(/\b(?:Skills?|Spells?)\s*$/i,"").replace(/[.,;:\s]+$/,"").trim();
+}
+function gStat(name){return G_STATS[gNorm(name)]||null}
+function gLooksLikeName(s){return !!s&&s.length<=48&&/^[A-Z\u00C0-\u024F]/.test(s)
+  &&!/\b(plus|bonus|choice|any|every|all|split|either|during|while|each|penalty|per|until|your|popularity)\b|-based\b/i.test(s)}
+var G_ALIAS={intimidation:"Intimidate"};
+/* Split bonus text into "+N names" pieces. A clause (between semicolons) that
+   mentions Spells makes every name in it a spell. */
+function gPieces(text){
+  var out=[];
+  String(text||"").replace(/\[[+\-\u2212]?\d+\s*pt\]/gi,"").split(/;/).forEach(function(clause){
+    var spells=/\bSpells?\b/i.test(clause);
+    clause.split(/(?=[+\-\u2212]\d)/).forEach(function(seg){
+      var m=seg.trim().match(/^([+\-\u2212])(\d+)\s*([\s\S]*)$/); if(!m)return;
+      var rest=m[3].split(/\.\s|\.$/)[0].trim();
+      out.push({n:(m[1]==="+"?1:-1)*(+m[2]),rest:rest,spells:spells,raw:seg.trim()});
+    });
+  });
+  return out;
+}
+function gNames(rest){
+  return rest.split(/,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+/).map(gCleanName).filter(Boolean);
+}
+/* turn one name into a target: stat, spell or skill */
+function gTarget(name,forceSpell){
+  if(G_ALIAS[gNorm(name)])name=G_ALIAS[gNorm(name)];
+  var st=gStat(name); if(st)return {type:"stat",key:st,label:G_STATNAME[st]};
+  var sp=gLib("spells",name); if(sp||(forceSpell&&gLooksLikeName(name)))return {type:"spell",key:sp?sp.name:name,label:(sp?sp.name:name)+" spell",lib:sp};
+  var sk=gLib("skills",name); if(sk)return {type:"skill",key:sk.name,label:sk.name,lib:sk};
+  if(gLooksLikeName(name))return {type:"skill",key:name,label:name};
+  return null;
+}
+/* weapon, hand-to-hand and attack skills get a row in the Attacks section */
+function gAttackSkill(lib){
+  if(!lib)return false; var ty=lib.type||"";
+  if(/damage effect|passive/i.test(ty))return false;
+  return /weapon|hand-to-hand|firearm|attack|melee|ranged|strike/i.test(ty)||(lib.check==="Evade"&&/\d+d\d+/.test(lib.damage||""));
+}
+function gDamage(txt){
+  var m=String(txt||"").match(/(\d+d\d+)\s*(?:\+\s*(Str|Dex|Con|Int|Cha)[a-z]*)?\s*(Piercing|Slashing|Bludgeoning|Fire|Ice|Lightning|Necrotic|Force|Poison|Holy|Sonic|Acid)?/i);
+  return m?{dice:m[1],stat:m[2]?G_STATS[m[2].toLowerCase()]:"",type:m[3]||""}:null;
+}
+/* natural attacks written into ability lines: "Tusks: a natural attack at Rank =
+   Floor, 1d8 + Str Piercing", "a natural Bite attack which deals 1d8 + Dex",
+   "Gain a Bite Attack at Rank 3 ...", "... uses your Throwing Rank and deals 1d6 + Dex" */
+function gNatural(line){
+  var l=String(line||"").replace(/^\[\d+\s*pt\]\s*/,"");
+  var dm=l.match(/(\d+d\d+)\s*\+\s*(Str|Dex|Con|Int|Cha)[a-z]*\b\s*(Piercing|Slashing|Bludgeoning|Fire|Ice|Lightning|Necrotic|Force|Poison|Holy|Sonic|Acid)?/i);
+  if(!dm)return null;
+  var usesM=l.match(/uses? your ([A-Z][\w\u2019' ]*?) Rank/);
+  if(!/natural\b[^.]*?\battack|\b[A-Z]\w* Attack at Rank\b/i.test(l)&&!usesM)return null;
+  /* the starting Rank: "Attack at Rank 3", or one that follows the Floor. "at Rank 5, 10, and 15" are upgrades, not the start */
+  var rk=(l.match(/Attack at Rank (\d+)/i)||[])[1]||(/Rank[^.]*Floor/i.test(l)?"Floor":"");
+  var nm=l.match(/\b(Bite|Claws?|Tusks?|Jaws|Horns?|Slam|Kick|Tail|Talons?|Stinger|Pliers)\b/i);
+  var label=l.indexOf(":")>0?l.split(":")[0].trim():"";
+  var name=nm?nm[1].charAt(0).toUpperCase()+nm[1].slice(1).toLowerCase():(label&&label.length<=30?label:"Natural attack");
+  return {name:name,rank:rk,uses:usesM?usesM[1]:"",dice:dm[1],stat:G_STATS[dm[2].toLowerCase()],type:dm[3]||""};
+}
+function grantPlan(entry,slot){
+  var p={slot:slot,entryId:entry.id,name:entry.name,fixed:[],choices:[],manual:[],dr:0,size:"",boxes:[],items:[],abilities:"",natural:[]};
+  (entry.abilities||"").split("\n").forEach(function(l){var na=gNatural(l);if(na&&!p.natural.some(function(x){return x.name===na.name}))p.natural.push(na)});
+  function parse(text,isDrawback){
+    gPieces(text).forEach(function(pc){
+      if(isDrawback&&pc.n>0)return;
+      var r=pc.rest, r0=r.replace(/\([^)]*\)?/g,"");   /* asides in brackets aren't conditions */
+      if(isDrawback&&/\bpenalty\b/i.test(r0))return;
+      if(/\bPopularity\b/i.test(r)){if(!isDrawback)p.manual.push(pc.raw);return}
+      if(/\bduring\b|\bwhile\b|\bwhen\b|\bonly\b|\bif\b|\bper\b/i.test(r0)){if(!isDrawback)p.manual.push(pc.raw);return}
+      if(/\ball Stats\b/i.test(r)){["str","int","con","dex","cha"].forEach(function(k){p.fixed.push({type:"stat",key:k,label:G_STATNAME[k],n:pc.n})});return}
+      if(/\bsplit\b/i.test(r)){var opts=gNames(r.replace(/^.*?\bbetween\b/i,"")).map(gStat).filter(Boolean);
+        if(opts.length)p.choices.push({kind:"split",n:pc.n,opts:opts,text:pc.raw});else p.manual.push(pc.raw);return}
+      var am=r0.match(/\bin an?\s+([\w\- ]*?)\s*\b(Skill|Spell)\b/i);
+      if(!isDrawback&&(/\bof your choice\b|\bany\b/i.test(r0)||am)){
+        var isSp=am?/spell/i.test(am[2]):/\bspell/i.test(r0);
+        var kw=am?am[1].replace(/\bof your choice\b/i,"").trim():(/weapon/i.test(r0)?"Weapon":"");
+        p.choices.push({kind:isSp?"anySpell":"anySkill",n:pc.n,filter:kw,text:pc.raw});return;
+      }
+      if(/\ball\b|\bevery\b/i.test(r0)){if(!isDrawback)p.manual.push(pc.raw);return}
+      if(/\bor\b/i.test(r)&&!isDrawback){
+        var ts=gNames(r.replace(/^.*?\beither\b/i,"")).map(function(nm){return gTarget(nm,pc.spells)}).filter(Boolean);
+        if(ts.length>1){p.choices.push({kind:"oneOf",n:pc.n,opts:ts,text:pc.raw});return}
+      }
+      if(!isDrawback&&/\bspecialty\b/i.test(r0))p.manual.push("Specialty: "+pc.raw);
+      var names=gNames(r), any=false, left=[];
+      names.forEach(function(nm){
+        var t=gTarget(nm,pc.spells);
+        if(!t){left.push(nm);return}
+        if(isDrawback&&t.type==="skill"&&!t.lib&&!/\bskill\b/i.test(pc.raw))return;
+        if(isDrawback&&t.type==="spell")return;
+        p.fixed.push(Object.assign({},t,{n:pc.n})); any=true;
+      });
+      if(!isDrawback&&(!any||left.length))p.manual.push(any?left.join(", "):pc.raw);
+    });
+  }
+  parse(entry.statBonus,false);
+  parse(entry.skillBonus,false);
+  /* only drawbacks that ARE a penalty ("-2 Strength") count; a drawback that
+     mentions a penalty as a consequence ("eat after midnight and ... -4
+     Charisma") stays in the text for the table to handle */
+  (entry.drawbacks||"").split("\n").forEach(function(line){
+    var l=line.replace(/\[\+\d+\s*pt\]/gi,"").replace(/^\s*\u2022\s*/,"").trim();
+    if(/^[\-\u2212]\d/.test(l))parse(l,true);
+  });
+  var drm=String(entry.drBonus||"").match(/[+\-\u2212]?\d+/); if(drm)p.dr=parseInt(drm[0].replace("\u2212","-"),10);
+  if(slot==="klass"){var cdr=(entry.abilities||"").match(/^\s*\u2022?\s*\+(\d+)\s+DR\b/m); if(cdr)p.dr+=+cdr[1];}
+  var szm=String(entry.size||"").match(/(Tiny|Small|Petite|Medium|Large|Huge|Colossal|Gargantuan)\s*\(\d\)/i);
+  if(slot==="race"&&szm)p.size=szm[0];
+  var bx=/(Bronze|Silver|Gold|Platinum|Legendary|Celestial)\s+([A-Z][\w ]*?Box)\b(?:,\s*with\s+([^.\n]+))?/g, bm;
+  while((bm=bx.exec(entry.abilities||""))){p.boxes.push({name:bm[2],rarity:bm[1],why:entry.name+(bm[3]?": "+bm[3].trim():"")})}
+  var ab=entry.abilities||"";
+  S.library.items.forEach(function(it){
+    if(!it.name||it.name.length<6)return;
+    if(new RegExp("\\b"+it.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(ab))p.items.push({id:it.id,name:it.name});
+  });
+  var txt=ab.split("\n").filter(function(l){return !/^Build:/.test(l)}).map(function(l){return l.replace(/^\[\d+\s*pt\]\s*/,"")}).join("\n").trim();
+  var dw=(entry.drawbacks||"").split("\n").map(function(l){return l.replace(/^\[\+\d+\s*pt\]\s*/,"")}).join("\n").trim();
+  p.abilities="\u2014 "+entry.name+" \u2014\n"+txt+(dw?"\n\nDrawbacks:\n"+dw:"");
+  return p;
+}
+function gAdjStat(c,k,n){
+  var sc=parseInt(c.stats[k],10)||0, en=(c.enh[k]===""||c.enh[k]==null)?sc:(parseInt(c.enh[k],10)||0);
+  c.stats[k]=String(sc+n); c.enh[k]=String(en+n);
+}
+function gFind(list,name){return list.find(function(x){return gNorm(x.name)===gNorm(name)})}
+/* apply a plan (plus the player's resolved choices and item picks), and record it */
+function grantApply(c,plan,extra,itemIds){
+  if(!c.grants)c.grants={};
+  var rec={entryId:plan.entryId,name:plan.name,stats:{},skills:[],spells:[],dr:0,drPrev:c.drBuffs,size:null,
+           field:plan.slot==="race"?"racialAbilities":"classAbilities",text:"",items:[],boxes:[],wasted:[],attacks:[]};
+  plan.fixed.concat(extra||[]).forEach(function(t){
+    if(t.type==="stat"){gAdjStat(c,t.key,t.n);rec.stats[t.key]=(rec.stats[t.key]||0)+t.n;return}
+    var isSp=t.type==="spell", list=isSp?c.spells:c.skills, ex=gFind(list,t.key), created=false;
+    if(!ex){
+      var lib=gLib(isSp?"spells":"skills",t.key);
+      ex=isSp?{id:uid(),libId:lib?lib.id:null,name:lib?lib.name:t.key,rank:0}:newSkill(lib?lib.name:t.key,0);
+      list.push(ex); created=true;
+    }
+    var old=parseInt(ex.rank,10)||0, nw=old+t.n;
+    /* the rulebook caps Skill Ranks at 10 during Race and Class selection */
+    if(t.n>0&&nw>10){rec.wasted.push(t.label+": "+(nw-Math.max(old,10))+" over the Rank 10 cap");nw=Math.max(old,10)}
+    ex.rank=nw; (isSp?rec.spells:rec.skills).push({id:ex.id,delta:nw-old,created:created});
+  });
+  /* attack rows: natural attacks, then any weapon/hand-to-hand skill granted */
+  function hasAtk(n){return c.attacks.some(function(a){return gNorm(a.name)===gNorm(n)})}
+  function addAtk(row){row.id=uid();row.fromGrant=plan.slot;c.attacks.push(row);rec.attacks.push(row.id)}
+  plan.natural.forEach(function(na){
+    if(hasAtk(na.name))return;
+    var rank=na.rank==="Floor"?String(c.floor||3):na.rank;
+    if(na.uses){var us=gFind(c.skills,na.uses);rank=us?String(us.rank):""}
+    addAtk({name:na.name,hitRank:rank,hitStat:na.stat,dmgDice:na.dice,dmgStat:na.stat,
+            effects:[na.type,na.rank==="Floor"?"Rank = Floor, raise it as you descend":"",na.uses?"uses your "+na.uses+" Rank":""].filter(Boolean).join("; ")});
+  });
+  plan.fixed.concat(extra||[]).forEach(function(t){
+    if(t.type!=="skill"||t.n<=0)return;
+    var lib=gLib("skills",t.key); if(!gAttackSkill(lib)||hasAtk(lib.name))return;
+    var sk=gFind(c.skills,lib.name), dmg=gDamage(lib.damage)||{dice:"",stat:"",type:""};
+    addAtk({name:lib.name,hitRank:sk?String(sk.rank):"",hitStat:lib.stat||"",dmgDice:dmg.dice,dmgStat:dmg.stat,effects:dmg.type});
+  });
+  if(plan.dr){c.drBuffs=String((parseFloat(c.drBuffs)||0)+plan.dr);rec.dr=plan.dr}
+  if(plan.size){rec.size={prev:c.size||"",set:plan.size};c.size=plan.size}
+  var cur=(c[rec.field]||"").replace(/\s+$/,"");
+  c[rec.field]=cur+(cur?"\n\n":"")+plan.abilities; rec.text=plan.abilities;
+  plan.items.forEach(function(it){
+    if(itemIds&&itemIds.indexOf(it.id)<0)return;
+    var li=S.library.items.find(function(x){return x.id===it.id}); if(!li)return;
+    var row={id:uid(),name:li.name,qty:1,weight:li.weight||"",slot:li.slot||"",notes:(li.effect||"").slice(0,200)};
+    c.inventory.push(row); rec.items.push(row.id);
+  });
+  plan.boxes.forEach(function(b){var row={id:uid(),name:b.name,rarity:b.rarity,why:b.why};c.boxes.push(row);rec.boxes.push(row.id)});
+  c.grants[plan.slot]=rec;
+  return rec;
+}
+/* undo exactly what grantApply did; anything the player has since changed by
+   hand is adjusted rather than wiped */
+function grantRevert(c,slot){
+  var rec=c.grants&&c.grants[slot]; if(!rec)return null;
+  Object.keys(rec.stats).forEach(function(k){gAdjStat(c,k,-rec.stats[k])});
+  [["skills",rec.skills],["spells",rec.spells]].forEach(function(pair){
+    var list=c[pair[0]];
+    pair[1].forEach(function(r){
+      var ix=list.findIndex(function(x){return x.id===r.id}); if(ix<0)return;
+      var nr=(parseInt(list[ix].rank,10)||0)-r.delta;
+      if(r.created&&nr<=0)list.splice(ix,1); else list[ix].rank=nr;
+    });
+  });
+  if(rec.dr){var after=(parseFloat(c.drBuffs)||0)-rec.dr;
+    c.drBuffs=(after===(parseFloat(rec.drPrev)||0))?(rec.drPrev==null?"":rec.drPrev):String(after)}
+  if(rec.size&&c.size===rec.size.set)c.size=rec.size.prev;
+  var f=c[rec.field]||"", ix=f.indexOf(rec.text), kept=false;
+  if(ix>=0)c[rec.field]=(f.slice(0,ix)+f.slice(ix+rec.text.length)).replace(/\n{3,}/g,"\n\n").trim();
+  else kept=true;
+  c.inventory=c.inventory.filter(function(x){return rec.items.indexOf(x.id)<0});
+  if(rec.attacks)c.attacks=c.attacks.filter(function(a){return rec.attacks.indexOf(a.id)<0});
+  c.boxes=c.boxes.filter(function(x){return rec.boxes.indexOf(x.id)<0});
+  delete c.grants[slot];
+  return {name:rec.name,textKept:kept};
+}
+/* the preview: what will change, the choices to make, what's left to the table */
+function grantPreview(c,plan){
+  var kind=plan.slot==="race"?"race":"class";
+  function row(a,b){return '<div style="display:flex;gap:10px;padding:3px 0;border-top:1px solid var(--hair)"><span style="flex:1">'+a+'</span><span class="hint">'+(b||"")+'</span></div>'}
+  function now(t){
+    if(t.type==="stat"){var v=parseInt(c.stats[t.key],10)||0;return v+" \u2192 "+(v+t.n)}
+    var ex=gFind(t.type==="spell"?c.spells:c.skills,t.key), v2=ex?(parseInt(ex.rank,10)||0):0, nw=v2+t.n;
+    return (ex?"Rank "+v2+" \u2192 ":"new, Rank ")+(t.n>0&&nw>10?"10 (capped)":nw);
+  }
+  var h='<div id="grantBox"><h2 style="font-size:22px;margin-bottom:4px">Apply '+esc(plan.name)+'?</h2>'
+    +'<p class="hint" style="margin:0 0 10px">Here\u2019s what this '+kind+' gives your crawler. Nothing changes until you press Apply, and switching or removing the '+kind+' later takes it all back off.</p>';
+  var groups=[["Stats","stat"],["Skills","skill"],["Spells","spell"]];
+  groups.forEach(function(g){
+    var ts=plan.fixed.filter(function(t){return t.type===g[1]}); if(!ts.length)return;
+    h+='<h3 style="margin-top:10px">'+g[0]+'</h3>'+ts.map(function(t){return row((t.n>0?"+":"")+t.n+" "+esc(t.label),now(t))}).join("");
+  });
+  var atks=plan.natural.map(function(na){return row(esc(na.name),na.dice+" + "+na.stat.toUpperCase()+(na.type?" "+na.type:"")+(na.rank==="Floor"?", Rank = Floor":na.rank?", Rank "+na.rank:"")+(na.uses?", uses "+esc(na.uses):""))})
+    .concat(plan.fixed.filter(function(t){return t.type==="skill"&&t.n>0&&gAttackSkill(gLib("skills",t.key))}).map(function(t){
+      var lib=gLib("skills",t.key);return row(esc(lib.name),(lib.damage?esc(lib.damage)+", ":"")+"hits with your "+esc(lib.name)+" Rank")}));
+  if(atks.length)h+='<h3 style="margin-top:10px">Attacks</h3><p class="hint" style="margin:0 0 4px">Added to the Attacks section, unless you already have one by that name.</p>'+atks.join("");
+  if(plan.choices.length){
+    h+='<h3 style="margin-top:10px">Your choices</h3>';
+    plan.choices.forEach(function(ch,i){
+      h+='<div style="padding:6px 0;border-top:1px solid var(--hair)"><div class="hint" style="margin-bottom:4px">'+esc(ch.text)+'</div>';
+      if(ch.kind==="oneOf"){
+        h+='<select data-ch="'+i+'"><option value="">Choose\u2026</option>'+ch.opts.map(function(o,j){return '<option value="'+j+'">+'+ch.n+' '+esc(o.label)+'</option>'}).join("")+'</select>';
+      }else if(ch.kind==="split"){
+        h+='<div style="display:flex;gap:8px;flex-wrap:wrap">'+ch.opts.map(function(k){return '<label class="f" style="width:110px"><span class="lab">'+G_STATNAME[k]+'</span><input type="number" min="0" value="0" data-chs="'+i+'" data-k="'+k+'"></label>'}).join("")
+          +'</div><div class="hint" data-left="'+i+'">'+ch.n+' left to place</div>';
+      }else{
+        var isSp=ch.kind==="anySpell", pool=S.library[isSp?"spells":"skills"], kw=(ch.filter||"").toLowerCase().split(/\s+/).filter(Boolean);
+        var f=pool.filter(function(x){var ty=(x.type||"").toLowerCase();return kw.every(function(w){return ty.indexOf(w)>=0})});
+        if(!f.length)f=pool;
+        h+='<select data-ch="'+i+'"><option value="">Choose a '+(isSp?"spell":"skill")+'\u2026</option>'+f.slice().sort(function(a,b){return a.name.localeCompare(b.name)}).map(function(x){return '<option value="'+esc(x.name)+'">'+esc(x.name)+'</option>'}).join("")+'</select>';
+      }
+      h+='</div>';
+    });
+  }
+  var also=[];
+  if(plan.dr)also.push(row("+"+plan.dr+" DR","added to your DR buffs"));
+  if(plan.size)also.push(row("Size "+esc(plan.size),"was "+esc(c.size||"not set")));
+  plan.boxes.forEach(function(b){also.push(row(esc(b.rarity+" "+b.name),"added to your loot boxes"))});
+  plan.items.forEach(function(it){also.push('<label style="display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--hair)"><input type="checkbox" data-gi="'+it.id+'" checked style="width:auto"><span style="flex:1">'+esc(it.name)+'</span><span class="hint">added to your inventory</span></label>')});
+  if(also.length)h+='<h3 style="margin-top:10px">Also</h3>'+also.join("");
+  h+='<h3 style="margin-top:10px">Abilities</h3><p class="hint" style="margin:0">The '+kind+'\u2019s abilities and drawbacks are written into <b>'+(plan.slot==="race"?"Racial":"Class")+' abilities</b> on your sheet.</p>';
+  if(plan.manual.length)h+='<h3 style="margin-top:10px">For you to handle</h3><p class="hint" style="margin:0 0 4px">These depend on the situation or a choice the manager can\u2019t make, so they\u2019re left to you.</p>'
+    +plan.manual.filter(function(m,i,a){return a.indexOf(m)===i}).map(function(m){return row(esc(m),"")}).join("");
+  h+='<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'
+    +'<button class="btn" id="grantSkip">Just set the '+kind+'</button><button class="btn pri" id="grantGo">Apply</button></div></div>';
+  openModal(h);
+  var box=$("grantBox");
+  function resolve(){
+    var extra=[], ok=true;
+    plan.choices.forEach(function(ch,i){
+      if(ch.kind==="split"){
+        var sum=0; Array.prototype.forEach.call(box.querySelectorAll('[data-chs="'+i+'"]'),function(inp){var v=parseInt(inp.value,10)||0;if(v>0){sum+=v;extra.push({type:"stat",key:inp.dataset.k,label:G_STATNAME[inp.dataset.k],n:v})}});
+        var left=ch.n-sum, el=box.querySelector('[data-left="'+i+'"]'); if(el)el.textContent=left===0?"All placed":(left>0?left+" left to place":(-left)+" too many");
+        if(left!==0)ok=false; return;
+      }
+      var sel=box.querySelector('[data-ch="'+i+'"]'); if(!sel||!sel.value){ok=false;return}
+      if(ch.kind==="oneOf")extra.push(Object.assign({},ch.opts[+sel.value],{n:ch.n}));
+      else extra.push({type:ch.kind==="anySpell"?"spell":"skill",key:sel.value,label:sel.value,n:ch.n});
+    });
+    $("grantGo").disabled=!ok; $("grantGo").title=ok?"":"Make your choices first";
+    return ok?extra:null;
+  }
+  resolve();
+  box.addEventListener("input",resolve); box.addEventListener("change",resolve);
+  $("grantSkip").addEventListener("click",function(){closeModal()});
+  $("grantGo").addEventListener("click",function(){
+    var extra=resolve(); if(!extra)return;
+    var ids=Array.prototype.filter.call(box.querySelectorAll("[data-gi]"),function(x){return x.checked}).map(function(x){return x.dataset.gi});
+    var rec=grantApply(c,plan,extra,ids);
+    save(); closeModal(); renderSheet();
+    toast("Applied "+plan.name+" to your sheet."+(rec.wasted.length?" Capped at Rank 10: "+rec.wasted.join("; ")+".":""),"good");
+  });
+}
+
 /* Some races are only for crawlers who entered the dungeon as a particular
    animal: the race carries onlyAnimal (e.g. "dog"), matched as a word in the
    crawler's "Entered as" field. */
@@ -3765,15 +4093,28 @@ $("sheetBody").addEventListener("change",function(e){
   if((e.target.dataset.pick==="race"||e.target.dataset.pick==="klass")&&(c.floor||1)>=3){
     var key=e.target.dataset.pick, libKey=key==="race"?"races":"classes";
     var idKey=key==="race"?"raceId":"classId";
-    if(!e.target.value){c[idKey]=null;c[key]="";save();renderSheet();return}
-    var pick=S.library[libKey].find(function(x){return x.id===e.target.value});
-    if(!pick)return;
+    var pick=e.target.value?S.library[libKey].find(function(x){return x.id===e.target.value}):null;
+    if(e.target.value&&!pick)return;
+    /* switching or clearing takes the old race/class's bonuses back off first */
+    var undone=grantRevert(c,key);
+    if(undone)toast("Removed "+undone.name+"\u2019s bonuses from your sheet."+(undone.textKept?" Its abilities text was edited, so it was left in place.":""));
+    if(!pick){c[idKey]=null;c[key]="";save();renderSheet();return}
     c[idKey]=pick.id; c[key]=pick.name;
     save();renderSheet();
+    grantPreview(c,grantPlan(pick,key));
   }
 });
 
 $("sheetBody").addEventListener("click",function(e){
+  var gt=e.target.closest?e.target.closest("[data-grant],[data-ungrant]"):null;
+  if(gt){
+    var gc=active(); if(!gc)return;
+    if(gt.dataset.ungrant){var u=grantRevert(gc,gt.dataset.ungrant);save();renderSheet();
+      if(u)toast("Removed "+u.name+"\u2019s bonuses from your sheet."+(u.textKept?" Its abilities text was edited, so it was left in place.":""));return}
+    var gk=gt.dataset.grant, gid=gk==="race"?gc.raceId:gc.classId;
+    var ge=S.library[gk==="race"?"races":"classes"].find(function(x){return x.id===gid});
+    if(ge)grantPreview(gc,grantPlan(ge,gk)); return;
+  }
   var c=active(); if(!c)return;
   var t=e.target;
   if(t.id==="advFloor"){
