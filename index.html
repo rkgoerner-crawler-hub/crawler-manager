@@ -180,6 +180,12 @@ select{cursor:pointer}
   .hb button{height:46px}
   .hb .p{display:none}
 }
+.skinfo{grid-column:1/-1;background:var(--panel2);border:1px solid var(--hair);border-radius:8px;padding:10px 12px;margin:4px 0 8px;font-size:13px}
+.mention{border-top:1px solid var(--hair);padding:5px 0}.mention summary{cursor:pointer}
+#diceFab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:45;border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+#dicePanel{position:fixed;right:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100vw - 24px));max-height:70vh;overflow:auto;z-index:45;background:var(--panel);border:1px solid var(--mortar);border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.rollrow{border-top:1px solid var(--hair);padding:6px 0}.rolltot{font-size:20px;font-weight:700}
+.rolltier{font-size:12px;font-weight:600}.rollrow.good .rolltier{color:var(--teal)}.rollrow.bad .rolltier{color:var(--rust)}
 </style>
 </head>
 <body>
@@ -316,6 +322,8 @@ select{cursor:pointer}
 <div class="toasts" id="toasts"></div>
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
 
+<button id="diceFab" class="btn pri" aria-expanded="false" aria-controls="dicePanel">Dice</button>
+<div id="dicePanel" role="dialog" aria-label="Dice" hidden></div>
 <script>
 (function(){
 "use strict";
@@ -426,6 +434,11 @@ function migrate(c){
   if(c.statPoints==null)c.statPoints=0;
   if(c.animalKind==null)c.animalKind="";
   if(!c.grants||typeof c.grants!=="object")c.grants={};
+  if(!c.subclassNotes)c.subclassNotes={};
+  (c.skills||[]).forEach(function(k){if(!k.id)k.id=uid()});
+  (c.spells||[]).forEach(function(k){if(!k.id)k.id=uid()});
+  (c.attacks||[]).forEach(function(k){if(!k.id)k.id=uid()});
+  if(!c.subOther)c.subOther={};
   if(!c.equipped)c.equipped=blankEquip();
   if(!c.equipped.accessories)c.equipped.accessories=["","","","","","","","","",""];
   if(c.gold==null)c.gold="";
@@ -1481,6 +1494,7 @@ async function load(){
   var raw=await store.get(KEY);
   if(raw){ try{ var d=JSON.parse(raw);
     S.characters=(d.characters||[]).map(migrate); S.activeId=d.activeId||null;
+    S.rollLog=Array.isArray(d.rollLog)?d.rollLog.slice(0,100):[];
     S.library=Object.assign({skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[]},d.library||{});
     S.encounter=d.encounter||{round:1,entries:[]};
     seedDefaults();
@@ -3372,6 +3386,7 @@ function renderSheet(){
       +'</div>'
       +'<button class="btn sm" data-spend="'+s[0]+'" style="margin-top:6px;width:100%'
       +(pts0&&!tutorial?'':';opacity:.35;cursor:default')+'"'+(pts0&&!tutorial?'':' disabled')+'>+1 (spend a point)</button>'
+      +'<button class="btn sm" data-roll="stat:'+s[0]+'" style="margin-top:4px;width:100%">Roll check</button>'
       +'</div>';
   });
   h+='</div></div>';
@@ -3425,12 +3440,34 @@ function renderSheet(){
     +'<div style="font-size:13px;line-height:1.5">'+esc(bl)+'</div></div>';
   /* Subclass choices at Floors 6, 9 and 12, for classes that have them */
   h+='<div class="grid g3" style="margin-top:12px">';
+  var subFix=false;
   [["f6",6],["f9",9],["f12",12]].forEach(function(sc){
-    var open=fl>=sc[1];
+    var open=fl>=sc[1], k=sc[0], opts=subOptions(c,k), val=c.subclasses[k]||"";
+    if(!opts.length){
+      h+='<div class="f"><span class="lab">Floor '+sc[1]+' subclass</span>'
+        +'<input type="text" data-sub="'+k+'" value="'+esc(val)+'"'
+        +(open?' placeholder="Your class\'s Floor '+sc[1]+' choice"':' disabled placeholder="Unlocks on Floor '+sc[1]+'"')+'></div>';
+      return;
+    }
+    /* this class lists its options: a dropdown, like picking the class itself */
+    var hit=opts.find(function(o){return o.name===val})||opts.find(function(o){return val&&val.toLowerCase().indexOf(o.name.toLowerCase())===0});
+    if(hit&&val!==hit.name){   /* older free text like 'Sports Entertainer: "catchphrase"' */
+      var rest=val.slice(hit.name.length).replace(/^\s*[:\-\u2013\u2014]\s*/,"");
+      c.subclasses[k]=hit.name; if(rest&&!c.subclassNotes[k])c.subclassNotes[k]=rest; val=hit.name; subFix=true;
+    }
+    var other=!hit&&(!!val||!!c.subOther[k]);
     h+='<div class="f"><span class="lab">Floor '+sc[1]+' subclass</span>'
-      +'<input type="text" data-sub="'+sc[0]+'" value="'+esc(c.subclasses[sc[0]])+'"'
-      +(open?' placeholder="Your class\'s Floor '+sc[1]+' choice"':' disabled placeholder="Unlocks on Floor '+sc[1]+'"')+'></div>';
+      +'<select data-subpick="'+k+'"'+(open?'':' disabled')+'><option value="">'+(open?"Choose\u2026":"Unlocks on Floor "+sc[1])+'</option>'
+      +opts.map(function(o){return '<option value="'+esc(o.name)+'"'+(hit&&hit.name===o.name?" selected":"")+'>'+esc(o.label)+'</option>'}).join("")
+      +'<option value="__other"'+(other?" selected":"")+'>Something else\u2026</option></select>'
+      +(other?'<input type="text" data-sub="'+k+'" value="'+esc(val)+'" placeholder="Your own Floor '+sc[1]+' choice" style="margin-top:4px">':'')
+      +(hit?'<input type="text" data-subnote="'+k+'" value="'+esc(c.subclassNotes[k]||"")+'" placeholder="Details, e.g. your catchphrase" style="margin-top:4px">':'')
+      +(hit&&open?(c.grants["sub_"+k]
+          ?'<span class="hint" style="display:flex;gap:8px;align-items:center;margin-top:4px">Bonuses applied <button class="btn sm" data-ungrant="sub_'+k+'">Remove bonuses</button></span>'
+          :'<span class="hint" style="margin-top:4px"><button class="btn sm" data-grant="sub_'+k+'">Apply its bonuses\u2026</button></span>'):'')
+      +'</div>';
   });
+  if(subFix)save();
   h+='</div><p class="hint" style="margin-top:6px">Only some classes have subclasses. Leave these blank if yours doesn\'t.</p>';
   h+='</div>';
 
@@ -3536,11 +3573,11 @@ function renderSheet(){
     +'<button class="btn sm" id="skClear">Clear marks</button>'
     +'<button class="btn sm pri" id="skAdd">Add skill</button></div>'
     +'<div class="tbl" id="skTbl">'
-    +'<div class="tr th" style="grid-template-columns:1fr 60px 70px 96px 1fr 52px 34px 28px">'
+    +'<div class="tr th" style="grid-template-columns:1fr 60px 70px 96px 1fr 52px 34px 40px 28px 28px">'
     +'<span>Skill</span><span>Rank</span><span>Stat</span><span>Check</span><span>Notes</span>'
-    +'<span>Rank die</span><span>Mark</span><span></span></div>';
+    +'<span>Rank die</span><span>Mark</span><span>Roll</span><span></span><span></span></div>';
   c.skills.forEach(function(s,ix){
-    h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 60px 70px 96px 1fr 52px 34px 28px">'
+    h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 60px 70px 96px 1fr 52px 34px 40px 28px 28px">'
       +'<input type="text" list="skillnames2" data-s="name" value="'+esc(s.name)+'">'
       +'<input type="number" data-s="rank" value="'+esc(s.rank)+'">'
       +'<select data-s="stat"><option value="">—</option><option value="none"'+(s.stat==="none"?" selected":"")+'>None</option>'
@@ -3551,7 +3588,10 @@ function renderSheet(){
       +'<input type="text" data-s="notes" value="'+esc(s.notes)+'">'
       +'<span class="mono">'+rankDie(s.rank)+'</span>'
       +'<input type="checkbox" data-s="marked"'+(s.marked?" checked":"")+' style="width:auto;justify-self:center">'
-      +'<button class="x" data-s="del">×</button></div>';
+      +'<button class="btn sm" data-roll="skill:'+esc(s.id)+'" title="Roll a '+esc(s.name||"skill")+' check" style="padding:1px 0">d20</button>'
+      +'<button class="btn sm" data-skinfo="'+esc(s.id)+'" title="What does this skill do?" aria-label="What does '+esc(s.name||"this skill")+' do?" style="padding:1px 0;min-width:24px">?</button>'
+      +'<button class="x" data-s="del">×</button></div>'
+      +'<div class="skinfo" data-skinfobox="'+esc(s.id)+'"'+(SKILL_INFO_OPEN[s.id]?'':' style="display:none"')+'>'+(SKILL_INFO_OPEN[s.id]?skillInfoHtml(s):'')+'</div>';
   });
   h+='</div><datalist id="skillnames2">'
     +S.library.skills.map(function(s){return '<option value="'+esc(s.name)+'">'}).join("")+'</datalist>';
@@ -3559,9 +3599,9 @@ function renderSheet(){
 
   h+='<div class="sec"><div class="bar"><h3>Attacks</h3><span class="sp"></span>'
     +'<button class="btn sm pri" id="atAdd">Add attack</button></div><div class="tbl">'
-    +'<div class="tr th" style="grid-template-columns:1fr 52px 62px 54px 72px 62px 54px 1fr 28px">'
+    +'<div class="tr th" style="grid-template-columns:1fr 52px 62px 54px 72px 62px 54px 1fr 40px 44px 28px 28px">'
     +'<span>Name</span><span>Rank</span><span>Stat</span><span>To hit</span>'
-    +'<span>Dice</span><span>Stat</span><span>Dmg</span><span>Effects</span><span></span></div>';
+    +'<span>Dice</span><span>Stat</span><span>Dmg</span><span>Effects</span><span>Hit</span><span>Dmg</span><span></span><span></span></div>';
   var statOpt=function(sel){
     return '<option value="">—</option>'+STATS.map(function(t){
       return '<option value="'+t[0]+'"'+(sel===t[0]?" selected":"")+'>'+t[0].toUpperCase()+'</option>'}).join("");
@@ -3570,7 +3610,7 @@ function renderSheet(){
     var hm=a.hitStat?statMod(c.enh[a.hitStat]||c.stats[a.hitStat]):null;
     var dm=a.dmgStat?statMod(c.enh[a.dmgStat]||c.stats[a.dmgStat]):null;
     var hitTot=(parseInt(a.hitRank,10)||0)+(hm||0);
-    h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 52px 62px 54px 72px 62px 54px 1fr 28px">'
+    h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 52px 62px 54px 72px 62px 54px 1fr 40px 44px 28px 28px">'
       +'<input type="text" data-a="name" value="'+esc(a.name)+'">'
       +'<input type="number" data-a="hitRank" value="'+esc(a.hitRank)+'">'
       +'<select data-a="hitStat">'+statOpt(a.hitStat)+'</select>'
@@ -3579,7 +3619,11 @@ function renderSheet(){
       +'<select data-a="dmgStat">'+statOpt(a.dmgStat)+'</select>'
       +'<span class="mono">'+(dm?("+"+dm):"—")+'</span>'
       +'<input type="text" data-a="effects" value="'+esc(a.effects)+'">'
-      +'<button class="x" data-a="del">×</button></div>';
+      +'<button class="btn sm" data-roll="hit:'+esc(a.id)+'" title="Roll to hit" style="padding:1px 0">Hit</button>'
+      +'<button class="btn sm" data-roll="dmg:'+esc(a.id)+'" title="Roll damage" style="padding:1px 0">Dmg</button>'
+      +'<button class="btn sm" data-atinfo="'+esc(a.id)+'" title="What does this attack do?" aria-label="What does '+esc(a.name||"this attack")+' do?" style="padding:1px 0;min-width:24px">?</button>'
+      +'<button class="x" data-a="del">×</button></div>'
+      +'<div class="skinfo" data-atinfobox="'+esc(a.id)+'"'+(SKILL_INFO_OPEN[a.id]?'':' style="display:none"')+'>'+(SKILL_INFO_OPEN[a.id]?attackInfoHtml(c,a):'')+'</div>';
   });
   h+='</div><p class="hint" style="margin-top:6px">To hit is rank plus stat mod, rolled against the target\'s Evade. '
     +'Melee uses Str to hit, ranged uses Dex.</p></div>';
@@ -3591,18 +3635,20 @@ function renderSheet(){
   if(!c.spells.length){h+='<div class="empty-note">No spells. Populate the Library, then add them here.</div>'}
   else{
     h+='<div class="tbl">'
-      +'<div class="tr th" style="grid-template-columns:1fr 60px 70px 90px 90px 60px 28px">'
-      +'<span>Spell</span><span>Rank</span><span>Mana</span><span>Range</span><span>Damage</span><span>Cast</span><span></span></div>';
+      +'<div class="tr th" style="grid-template-columns:1fr 60px 70px 90px 90px 60px 28px 28px">'
+      +'<span>Spell</span><span>Rank</span><span>Mana</span><span>Range</span><span>Damage</span><span>Cast</span><span></span><span></span></div>';
     c.spells.forEach(function(sp,ix){
       var lib=S.library.spells.find(function(l){return l.id===sp.libId})||{};
-      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 60px 70px 90px 90px 60px 28px">'
+      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 60px 70px 90px 90px 60px 28px 28px">'
         +'<span style="font-weight:600">'+esc(sp.name)+'</span>'
         +'<input type="number" data-sp="rank" value="'+esc(sp.rank)+'">'
         +'<span class="mono">'+esc(lib.mana||"—")+'</span>'
         +'<span class="mono">'+esc(lib.range||"—")+'</span>'
         +'<span class="mono">'+esc(lib.damage||"—")+'</span>'
         +'<button class="btn sm" data-sp="cast">Cast</button>'
-        +'<button class="x" data-sp="del">×</button></div>';
+        +'<button class="btn sm" data-spinfo="'+esc(sp.id)+'" title="What does this spell do?" aria-label="What does '+esc(sp.name||"this spell")+' do?" style="padding:1px 0;min-width:24px">?</button>'
+        +'<button class="x" data-sp="del">×</button></div>'
+        +'<div class="skinfo" data-spinfobox="'+esc(sp.id)+'"'+(SKILL_INFO_OPEN[sp.id]?'':' style="display:none"')+'>'+(SKILL_INFO_OPEN[sp.id]?spellInfoHtml(sp):'')+'</div>';
     });
     h+='</div>';
   }
@@ -3712,9 +3758,11 @@ function gNames(rest){
   return rest.split(/,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+/).map(gCleanName).filter(Boolean);
 }
 /* turn one name into a target: stat, spell or skill */
-function gTarget(name,forceSpell){
+function gTarget(name,forceSpell,strict){
   if(G_ALIAS[gNorm(name)])name=G_ALIAS[gNorm(name)];
   var st=gStat(name); if(st)return {type:"stat",key:st,label:G_STATNAME[st]};
+  if(strict){var ls=gLib("spells",name);if(ls)return {type:"spell",key:ls.name,label:ls.name+" spell",lib:ls};
+    var lk=gLib("skills",name);return lk?{type:"skill",key:lk.name,label:lk.name,lib:lk}:null}
   var sp=gLib("spells",name); if(sp||(forceSpell&&gLooksLikeName(name)))return {type:"spell",key:sp?sp.name:name,label:(sp?sp.name:name)+" spell",lib:sp};
   var sk=gLib("skills",name); if(sk)return {type:"skill",key:sk.name,label:sk.name,lib:sk};
   if(gLooksLikeName(name))return {type:"skill",key:name,label:name};
@@ -3746,7 +3794,8 @@ function gNatural(line){
   var name=nm?nm[1].charAt(0).toUpperCase()+nm[1].slice(1).toLowerCase():(label&&label.length<=30?label:"Natural attack");
   return {name:name,rank:rk,uses:usesM?usesM[1]:"",dice:dm[1],stat:G_STATS[dm[2].toLowerCase()],type:dm[3]||""};
 }
-function grantPlan(entry,slot){
+function grantPlan(entry,slot,opts){
+  var strict=!!(opts&&opts.strict);
   var p={slot:slot,entryId:entry.id,name:entry.name,fixed:[],choices:[],manual:[],dr:0,size:"",boxes:[],items:[],abilities:"",natural:[]};
   (entry.abilities||"").split("\n").forEach(function(l){var na=gNatural(l);if(na&&!p.natural.some(function(x){return x.name===na.name}))p.natural.push(na)});
   function parse(text,isDrawback){
@@ -3754,7 +3803,15 @@ function grantPlan(entry,slot){
       if(isDrawback&&pc.n>0)return;
       var r=pc.rest, r0=r.replace(/\([^)]*\)?/g,"");   /* asides in brackets aren't conditions */
       if(isDrawback&&/\bpenalty\b/i.test(r0))return;
-      if(/\bPopularity\b/i.test(r)){if(!isDrawback)p.manual.push(pc.raw);return}
+      if(/\bPopularity\b/i.test(r)){if(!isDrawback&&!strict)p.manual.push(pc.raw);return}
+      /* subclass options are free sentences: only apply what can be pinned down
+         exactly (stats, and skills/spells that exist in the library); the whole
+         text still goes into Class abilities */
+      if(strict){
+        if(/\bduring\b|\bwhile\b|\bwhen\b|\bonly\b|\bif\b|\bper\b/i.test(r0))return;
+        gNames(r).forEach(function(nm){var t=gTarget(nm,pc.spells,true);if(t&&!(isDrawback&&t.type==="spell"))p.fixed.push(Object.assign({},t,{n:pc.n}))});
+        return;
+      }
       if(/\bduring\b|\bwhile\b|\bwhen\b|\bonly\b|\bif\b|\bper\b/i.test(r0)){if(!isDrawback)p.manual.push(pc.raw);return}
       if(/\ball Stats\b/i.test(r)){["str","int","con","dex","cha"].forEach(function(k){p.fixed.push({type:"stat",key:k,label:G_STATNAME[k],n:pc.n})});return}
       if(/\bsplit\b/i.test(r)){var opts=gNames(r.replace(/^.*?\bbetween\b/i,"")).map(gStat).filter(Boolean);
@@ -3887,7 +3944,7 @@ function grantRevert(c,slot){
 }
 /* the preview: what will change, the choices to make, what's left to the table */
 function grantPreview(c,plan){
-  var kind=plan.slot==="race"?"race":"class";
+  var kind=plan.slot==="race"?"race":(plan.slot.indexOf("sub_")===0?"subclass":"class");
   function row(a,b){return '<div style="display:flex;gap:10px;padding:3px 0;border-top:1px solid var(--hair)"><span style="flex:1">'+a+'</span><span class="hint">'+(b||"")+'</span></div>'}
   function now(t){
     if(t.type==="stat"){var v=parseInt(c.stats[t.key],10)||0;return v+" \u2192 "+(v+t.n)}
@@ -3963,6 +4020,280 @@ function grantPreview(c,plan){
   });
 }
 
+/* ---- subclasses: a class line like "Upon entering the Sixth Floor, choose
+   one..." followed by one bullet per option ("• Sicko (death match): ...") ---- */
+var G_FLOORWORD={sixth:6,ninth:9,twelfth:12};
+function gSubclasses(entry){
+  var out={}, cur=null;
+  (entry&&entry.abilities||"").split("\n").forEach(function(l){
+    var fm=l.match(/\b(Sixth|Ninth|Twelfth)\s+Floor\b|\bFloor\s+(6|9|12)\b/i);
+    if(fm&&/\bchoose\b/i.test(l)){cur="f"+(fm[1]?G_FLOORWORD[fm[1].toLowerCase()]:fm[2]);out[cur]=out[cur]||[];return}
+    if(!cur)return;
+    var bm=l.match(/^\s*\u2022\s*([^:]+):\s*([\s\S]*)$/);
+    if(bm){var label=bm[1].trim();out[cur].push({name:label.replace(/\s*\(.*?\)\s*$/,"").trim(),label:label,text:bm[2].trim()});return}
+    if(l.trim())cur=null;
+  });
+  Object.keys(out).forEach(function(k){if(!out[k].length)delete out[k]});
+  return out;
+}
+function gClassOf(c){return c&&c.classId?S.library.classes.find(function(x){return x.id===c.classId})||null:null}
+function subOptions(c,key){var cl=gClassOf(c);return cl?(gSubclasses(cl)[key]||[]):[]}
+function subPlan(c,key,optName){
+  var cl=gClassOf(c), opt=subOptions(c,key).find(function(o){return o.name===optName});
+  if(!cl||!opt)return null;
+  return grantPlan({id:"sub:"+cl.id+":"+key,name:opt.name+" ("+cl.name+", Floor "+key.slice(1)+")",statBonus:opt.text,skillBonus:"",
+                    abilities:opt.label+": "+opt.text,drawbacks:"",drBonus:""},"sub_"+key,{strict:true});
+}
+/* ================= dice: checks, damage, and a party roll log ================= */
+/* The rulebook: Skill Check = d20 + Skill Rank + Stat Mod; Stat Check = d20 +
+   Stat Mod; damage = damage dice + Stat Mod. Advantage rolls an extra d20 and
+   keeps the higher, Disadvantage the lower. Degrees of success are measured
+   against the Difficulty, which the GM usually keeps, so it's optional here. */
+var DICE={mode:"normal",diff:"",open:false,tab:"mine"};
+var partyRolls=[], partyRollsUnsub=null, partyRollsCode="";
+function rnd(n){
+  if(window.__diceSeq&&window.__diceSeq.length)return window.__diceSeq.shift();
+  if(window.crypto&&crypto.getRandomValues){var a=new Uint32Array(1);crypto.getRandomValues(a);return 1+(a[0]%n)}
+  return 1+Math.floor(Math.random()*n);
+}
+function rollExpr(expr){
+  var s=String(expr||"").replace(/\s+/g,"").toLowerCase().replace(/\u2212/g,"-"); if(!s)return null;
+  if(!/^[+\-]?(\d*d\d+|\d+)([+\-](\d*d\d+|\d+))*$/.test(s))return null;
+  var total=0, parts=[];
+  s.replace(/([+\-]?)(\d*)d(\d+)|([+\-]?)(\d+)/g,function(m,sg,cnt,sides,sg2,num){
+    if(sides){
+      var n=Math.max(1,Math.min(parseInt(cnt||"1",10),100)), sd=Math.max(2,Math.min(parseInt(sides,10),1000)), r=[];
+      for(var i=0;i<n;i++)r.push(rnd(sd));
+      var sum=r.reduce(function(a,b){return a+b},0); total+=sg==="-"?-sum:sum;
+      parts.push((sg==="-"?"\u2212 ":parts.length?"+ ":"")+n+"d"+sd+" ["+r.join(", ")+"]");
+    }else{var v=parseInt(num,10)*(sg2==="-"?-1:1);total+=v;parts.push((v<0?"\u2212 ":parts.length?"+ ":"")+Math.abs(v))}
+    return m;
+  });
+  return {total:total,text:parts.join(" ")};
+}
+function rollTier(nat,total,diff){
+  if(nat===20)return "Critical Hit";
+  if(nat===1)return "Critical Fail";
+  if(diff==null||isNaN(diff))return "";
+  var by=total-diff;
+  if(by>=10)return "Amazing Success"; if(by>=0)return "Standard Success";
+  if(by>=-2)return "Near Miss Fail"; if(by>=-9)return "Standard Fail"; return "Major Fail";
+}
+function modOf(c,k){return k&&k!=="none"?(statMod(c.enh[k]||c.stats[k])||0):0}
+function rollCheck(c,label,mods){
+  var a=rnd(20), b=DICE.mode!=="normal"?rnd(20):null;
+  var nat=b==null?a:(DICE.mode==="adv"?Math.max(a,b):Math.min(a,b));
+  var add=mods.reduce(function(s,m){return s+(m.v||0)},0), total=nat+add;
+  var diff=String(DICE.diff).trim()===""?null:parseInt(DICE.diff,10);
+  var detail="d20 "+(b==null?"["+a+"]":"["+a+", "+b+"] "+(DICE.mode==="adv"?"Advantage":"Disadvantage")+" keeps "+nat)
+    +mods.filter(function(m){return m.v}).map(function(m){return (m.v<0?" \u2212 ":" + ")+Math.abs(m.v)+(m.l?" "+m.l:"")}).join("")
+    +(diff!=null&&!isNaN(diff)?" vs "+diff:"");
+  recordRoll(c,{label:label,total:total,nat:nat,detail:detail,tier:rollTier(nat,total,diff),mode:DICE.mode});
+}
+function recordRoll(c,r){
+  r.who=c?(c.name||"Crawler"):"GM"; r.at=Date.now();
+  if(!S.rollLog)S.rollLog=[];
+  S.rollLog.unshift(r); if(S.rollLog.length>100)S.rollLog.length=100;
+  save();
+  var good=/Critical Hit|Amazing|Standard Success/.test(r.tier), bad=/Fail/.test(r.tier);
+  toast(r.label+": "+r.total+(r.tier?" \u2014 "+r.tier:"")+"  ("+r.detail+")",good?"good":bad?"warn":"");
+  postPartyRoll(r); renderDice();
+}
+/* ---- the party log, inside the campaign in Firebase ---- */
+function rollCode(){return cloud.campaign||cloud.gmCode||""}
+function rollsRef(code){return fbDb.collection("campaigns").doc(code).collection("rolls")}
+function fbNow(){try{return firebase.firestore.FieldValue.serverTimestamp()}catch(e){return new Date()}}
+function postPartyRoll(r){
+  var code=rollCode(); if(!code||!fbDb||!fbUser)return;
+  try{
+    var p=rollsRef(code).add({owner:fbUser.uid,who:String(r.who).slice(0,120),label:String(r.label).slice(0,120),
+      detail:String(r.detail).slice(0,300),total:r.total,nat:r.nat||0,tier:r.tier||"",mode:r.mode||"normal",at:fbNow()});
+    if(p&&p.catch)p.catch(function(){});
+  }catch(e){}
+  listenPartyRolls();
+}
+function listenPartyRolls(){
+  var code=rollCode(); if(!code||!fbDb||!fbUser)return;
+  if(partyRollsUnsub&&partyRollsCode===code)return;
+  if(partyRollsUnsub){try{partyRollsUnsub()}catch(e){}}
+  partyRollsCode=code; partyRolls=[];
+  partyRollsUnsub=rollsRef(code).orderBy("at","desc").limit(40).onSnapshot(function(qs){
+    partyRolls=[]; qs.forEach(function(d){var x=d.data();x.id=d.id;partyRolls.push(x)});
+    if(DICE.open)renderDice();
+  },function(){});
+}
+function rollAt(x){var a=x&&x.at; if(!a)return Date.now(); if(typeof a==="number")return a; if(a.toMillis)return a.toMillis(); if(a instanceof Date)return a.getTime(); return Date.parse(a)||Date.now()}
+function rollItem(r,showWho){
+  var cls=/Critical Hit|Amazing|Standard Success/.test(r.tier||"")?"good":/Fail/.test(r.tier||"")?"bad":"";
+  return '<div class="rollrow '+cls+'"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">'+(showWho?esc(r.who)+": ":"")+esc(r.label)+'</b>'
+    +'<span class="rolltot">'+esc(r.total)+'</span></div>'
+    +(r.tier?'<div class="rolltier">'+esc(r.tier)+'</div>':'')
+    +'<div class="hint">'+esc(r.detail)+' \u00b7 '+esc(ago(rollAt(r)))+'</div></div>';
+}
+function renderDice(){
+  var p=$("dicePanel"), fab=$("diceFab"); if(!p||!fab)return;
+  p.hidden=!DICE.open; fab.setAttribute("aria-expanded",DICE.open?"true":"false");
+  if(!DICE.open)return;
+  var c=active(), code=rollCode(), connected=!!(code&&fbDb&&fbUser);
+  var h='<div class="bar"><h3>Dice</h3><span class="sp"></span><button class="x" id="diceClose" aria-label="Close">\u00d7</button></div>'
+    +'<div class="hint" style="margin:-4px 0 8px">Rolling for <b>'+esc(c?(c.name||"your crawler"):"no crawler selected")+'</b>. Roll buttons are on the Sheet: stats, skills and attacks.</div>'
+    +'<div class="pill" style="margin-bottom:8px">'+[["normal","Normal"],["adv","Advantage"],["dis","Disadvantage"]].map(function(m){
+        return '<button data-dmode="'+m[0]+'" aria-pressed="'+(DICE.mode===m[0])+'">'+m[1]+'</button>'}).join("")+'</div>'
+    +'<label class="f"><span class="lab">Difficulty <span class="hint">(optional, if the GM tells you)</span></span>'
+    +'<input type="number" id="diceDiff" value="'+esc(DICE.diff)+'" placeholder="Leave blank if it\u2019s secret"></label>'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin:8px 0">'+["d4","d6","d8","d10","d12","d20","d100"].map(function(dd){return '<button class="btn sm" data-qd="1'+dd+'">'+dd+'</button>'}).join("")+'</div>'
+    +'<div style="display:flex;gap:6px"><input type="text" id="diceExpr" placeholder="Any roll, e.g. 2d6+3" style="flex:1"><button class="btn pri" id="diceGo">Roll</button></div>'
+    +'<div class="pill" style="margin:12px 0 6px"><button data-dtab="mine" aria-pressed="'+(DICE.tab==="mine")+'">My rolls</button>'
+    +'<button data-dtab="party" aria-pressed="'+(DICE.tab==="party")+'">Party rolls</button></div>';
+  if(DICE.tab==="mine"){
+    var mine=(S.rollLog||[]).slice(0,30);
+    h+=mine.length?mine.map(function(r){return rollItem(r,false)}).join(""):'<p class="hint">No rolls yet.</p>';
+    if(mine.length)h+='<button class="btn sm" id="diceClearMine" style="margin-top:6px">Clear my log</button>';
+  }else if(!connected){
+    h+='<p class="hint">Join your table\u2019s campaign in the Party tab (or open yours as GM), and everyone\u2019s rolls show up here live.</p>';
+  }else{
+    h+='<div class="hint" style="margin-bottom:4px">Campaign <b>'+esc(code)+'</b>, live.</div>'
+      +(partyRolls.length?partyRolls.map(function(r){return rollItem(r,true)}).join(""):'<p class="hint">No party rolls yet.</p>')
+      +(cloud.gmCode&&code===cloud.gmCode&&partyRolls.length?'<button class="btn sm" id="diceClearParty" style="margin-top:6px">Clear the party log</button>':'');
+  }
+  p.innerHTML=h;
+}
+/* panel wiring */
+(function(){
+  var fab=$("diceFab"), p=$("dicePanel"); if(!fab||!p)return;
+  fab.addEventListener("click",function(){DICE.open=!DICE.open;if(DICE.open)listenPartyRolls();renderDice()});
+  p.addEventListener("click",function(e){
+    var t=e.target.closest("button"); if(!t)return;
+    if(t.id==="diceClose"){DICE.open=false;renderDice();return}
+    if(t.dataset.dmode){DICE.mode=t.dataset.dmode;renderDice();return}
+    if(t.dataset.dtab){DICE.tab=t.dataset.dtab;if(DICE.tab==="party")listenPartyRolls();renderDice();return}
+    if(t.dataset.qd||t.id==="diceGo"){
+      var ex=t.dataset.qd||($("diceExpr")&&$("diceExpr").value)||"", r=rollExpr(ex);
+      if(!r){toast("That roll doesn\u2019t make sense to me. Try something like 2d6+3.","warn");return}
+      var one20=/^\s*1?d20\s*([+\-\u2212]\s*\d+\s*)*$/i.test(ex), nat=one20?parseInt((r.text.match(/\[(\d+)\]/)||[])[1],10):0;
+      var diff=String(DICE.diff).trim()===""?null:parseInt(DICE.diff,10);
+      recordRoll(active(),{label:ex.replace(/\s+/g,""),total:r.total,nat:nat,detail:r.text+(one20&&diff!=null&&!isNaN(diff)?" vs "+diff:""),tier:one20?rollTier(nat,r.total,diff):"",mode:"normal"});
+      return;
+    }
+    if(t.id==="diceClearMine"){S.rollLog=[];save();renderDice();return}
+    if(t.id==="diceClearParty"){
+      ask("Clear the party\u2019s roll log? Everyone at the table stops seeing the current rolls, and new rolls start a fresh log.","Clear it",function(){
+        var code=rollCode(); if(!code||!fbDb)return;
+        rollsRef(code).get().then(function(qs){qs.forEach(function(d){d.ref.delete()})}).catch(function(){toast("Couldn\u2019t clear the log. Check your connection.","warn")});
+      });
+    }
+  });
+  p.addEventListener("input",function(e){if(e.target.id==="diceDiff")DICE.diff=e.target.value});
+  p.addEventListener("keydown",function(e){if(e.target.id==="diceExpr"&&e.key==="Enter"){e.preventDefault();var g=$("diceGo");if(g)g.click()}});
+})();
+if(window.__CM_TEST__)window.__CM_TEST__.cloud=function(db,user,camp,gm){fbDb=db;fbUser=user;cloud.campaign=camp||"";cloud.gmCode=gm||""};
+
+/* ---- what a skill does, shown under its row on the sheet ---- */
+var SKILL_INFO_OPEN={};
+function skillInfoHtml(s){
+  var lib=gLib("skills",s.name)||gLib("spells",s.name);
+  return libInfoHtml(lib,s.rank,!!(lib&&!gLib("skills",s.name)),s.name);
+}
+function spellInfoHtml(sp){
+  var lib=S.library.spells.find(function(l){return l.id===sp.libId})||gLib("spells",sp.name);
+  return libInfoHtml(lib,sp.rank,true,sp.name);
+}
+/* an attack is usually how you use something else: a skill ("Tire Iron
+   (Club)" uses Club), a spell, or a race/class ability (Tusks, Bite...) */
+function attackInfoHtml(c,a){
+  var nm=(a.name||"").trim(), inner=(nm.match(/\(([^)]+)\)\s*$/)||[])[1], cands=[nm,inner].filter(Boolean);
+  for(var i=0;i<cands.length;i++){
+    var sk=gLib("skills",cands[i]), sp=!sk&&gLib("spells",cands[i]);
+    if(sk||sp){
+      var own=gFind(sk?c.skills:c.spells,cands[i]);
+      return (cands[i]!==nm?'<div class="hint" style="margin-bottom:4px">Uses your <b>'+esc(cands[i])+'</b> '+(sk?"skill":"spell")+'.</div>':'')
+        +libInfoHtml(sk||sp,own?own.rank:a.hitRank,!sk,cands[i]);
+    }
+  }
+  /* natural attacks and class tricks live in the race or class text */
+  var srcs=[["race",c.raceId,"races"],["klass",c.classId,"classes"]];
+  for(var j=0;j<srcs.length;j++){
+    var ent=srcs[j][1]&&S.library[srcs[j][2]].find(function(x){return x.id===srcs[j][1]}); if(!ent)continue;
+    var lines=(ent.abilities||"").split("\n");
+    for(var k=0;k<lines.length;k++){
+      var na=gNatural(lines[k]);
+      if(na&&gNorm(na.name)===gNorm(nm)){
+        return '<div class="hint" style="margin-bottom:6px">From your '+(srcs[j][0]==="race"?"race":"class")+', <b>'+esc(ent.name)+'</b>:</div>'
+          +'<div style="line-height:1.5">'+esc(lines[k].replace(/^\[\d+\s*pt\]\s*/,"")).replace(/\n+/g,"<br>")+'</div>'
+          +mentionsHtml(lines[k],nm);
+      }
+    }
+  }
+  return '<p class="hint" style="margin:0">'+(nm?'<b>'+esc(nm)+'</b> isn\u2019t linked to a skill, spell or ability in your Library. ':'Give this attack a name. ')
+    +'If it uses a skill, name it after the skill, or put the skill in brackets like \u201cTire Iron (Club)\u201d, and its details will show here.</p>';
+}
+/* Define the damage effects and debuffs a rule mentions ("Choose the Choke
+   Out, Dirty Fighting, or Toss Damage Effect", "gains the Held Debuff") */
+function gEsc(t){return String(t).replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/['\u2019]/g,"['\u2019]")}
+function mentionsHtml(text,selfName){
+  var t=String(text||""), out=[], seen={}, c=active();
+  function add(key,html){if(seen[key])return;seen[key]=1;out.push(html)}
+  var para=function(x){return esc(x).replace(/\n+/g,"<br>")};
+  /* damage effects the library knows, named anywhere in the text */
+  S.library.skills.forEach(function(sk){
+    if(!/damage effect/i.test(sk.type||"")||gNorm(sk.name)===gNorm(selfName))return;
+    if(!new RegExp("\\b"+gEsc(sk.name)+"\\b","i").test(t))return;
+    var own=c&&gFind(c.skills,sk.name), rk=own?parseInt(own.rank,10)||0:0;
+    var ups=[[5,sk.up5],[10,sk.up10],[15,sk.up15]].filter(function(u){return u[1]});
+    add("de:"+gNorm(sk.name),'<details class="mention"><summary><b>'+esc(sk.name)+'</b> <span class="hint">Damage effect'+(own?", your Rank "+rk:"")+'</span></summary>'
+      +'<div style="margin-top:4px;line-height:1.5">'+para(sk.description||"")+'</div>'
+      +(sk.limitations?'<div style="margin-top:4px"><b>Limitations:</b> '+para(sk.limitations)+'</div>':'')
+      +ups.map(function(u){var on=own&&rk>=u[0];return '<div style="margin-top:3px'+(on?'':';opacity:.6')+'"><span class="mono">Rank '+u[0]+(on?' \u2713':'')+'</span> '+para(u[1])+'</div>'}).join("")
+      +'</details>');
+  });
+  /* damage effects named in a "Choose the X, Y, or Z Damage Effect" list but not in the library yet */
+  var dm=t.match(/Choose the ([^.]*?) Damage Effects?\b/i);
+  if(dm)dm[1].split(/,\s*(?:or\s+)?|\s+or\s+/).map(function(x){return x.trim()}).filter(Boolean).forEach(function(n){
+    if(!gLib("skills",n))add("de:"+gNorm(n),'<div class="mention"><b>'+esc(n)+'</b> <span class="hint">Damage effect, not in your Library yet (import the book it\u2019s from to see its rules)</span></div>');
+  });
+  /* debuffs: "... the Held Debuff" */
+  S.library.debuffs.forEach(function(db){
+    if(!db.name||!new RegExp("\\b"+gEsc(db.name)+"\\s+Debuff","i").test(t))return;
+    add("db:"+gNorm(db.name),'<details class="mention"><summary><b>'+esc(db.name)+'</b> <span class="hint">Debuff</span></summary>'
+      +'<div style="margin-top:4px;line-height:1.5">'+para(db.effect||"")+'</div>'
+      +(db.duration?'<div class="hint" style="margin-top:3px">Lasts: '+esc(db.duration)+'</div>':'')+'</details>');
+  });
+  var dbm=t.match(/\b([A-Z][\w\u2019' -]{1,30}?)\s+Debuff\b/g)||[];
+  dbm.forEach(function(m){var n=m.replace(/\s+Debuff$/,"").replace(/^(?:the|a|an)\s+/i,"").trim();
+    if(n&&!/^(the|a|an|this|that|any)$/i.test(n)&&!S.library.debuffs.some(function(d){return gNorm(d.name)===gNorm(n)}))
+      add("db:"+gNorm(n),'<div class="mention"><b>'+esc(n)+'</b> <span class="hint">Debuff, not in your Library yet (Rules for Survival and the Core Rulebook have them)</span></div>');
+  });
+  return out.length?'<div style="margin-top:10px"><b>Mentioned here</b>'+out.join("")+'</div>':"";
+}
+function libInfoHtml(lib,rankVal,isSpell,name){
+  if(!lib)return '<p class="hint" style="margin:0">'+(name?'<b>'+esc(name)+'</b> isn\u2019t in your Library yet. ':'')
+    +'Import the book it comes from (Library \u2192 Import from PDF), or add it to the Library yourself, and its description will show here.</p>';
+  var rank=parseInt(rankVal,10)||0, bits=[];
+  if(lib.type)bits.push(esc(lib.type));
+  if(!isSpell&&lib.stat)bits.push(lib.stat==="none"?"No stat":esc(lib.stat.toUpperCase()));
+  if(!isSpell&&lib.check)bits.push(esc(lib.check)+" check");
+  if(isSpell&&lib.mana)bits.push(esc(lib.mana)+" Mana");
+  if(lib.damage)bits.push("Damage: "+esc(lib.damage));
+  if(lib.range)bits.push("Range: "+esc(lib.range));
+  if(isSpell&&lib.duration)bits.push("Duration: "+esc(lib.duration));
+  if(isSpell&&lib.cooldown)bits.push("Cooldown: "+esc(lib.cooldown));
+  var para=function(t){return esc(t).replace(/\n+/g,"<br>")};
+  var h='<div class="hint" style="margin-bottom:6px">'+bits.join(" \u00b7 ")+'</div>';
+  if(lib.description)h+='<div style="line-height:1.5">'+para(lib.description)+'</div>';
+  if(lib.limitations)h+='<div style="margin-top:6px"><b>Limitations:</b> '+para(lib.limitations)+'</div>';
+  var ups=[];
+  if(isSpell){
+    String(lib.up5||"").split("\n").forEach(function(l,i){l=l.trim();if(!l)return;var m=l.match(/^Rank (\d+):\s*(.*)$/i);ups.push(m?[+m[1],m[2]]:[5,l])});
+  }else{[[5,lib.up5],[10,lib.up10],[15,lib.up15]].forEach(function(u){if(u[1])ups.push(u)})}
+  if(ups.length){
+    h+='<div style="margin-top:8px"><b>Upgrades</b>'+ups.map(function(u){var on=rank>=u[0];
+      return '<div style="display:flex;gap:8px;margin-top:3px'+(on?'':';opacity:.6')+'"><span class="mono" style="min-width:74px">Rank '+u[0]+(on?' \u2713':'')+'</span><span>'+para(u[1])+(on?'':' <span class="hint">(unlocks at Rank '+u[0]+')</span>')+'</span></div>'}).join("")+'</div>';
+  }
+  h+=mentionsHtml([lib.description,lib.limitations,lib.damage,lib.up5,lib.up10,lib.up15].join("\n"),lib.name);
+  var src=[lib.source,lib.page?"p. "+lib.page:""].filter(Boolean).join(", ");
+  if(src)h+='<div class="hint" style="margin-top:6px">'+esc(src)+'</div>';
+  return h;
+}
 /* Some races are only for crawlers who entered the dungeon as a particular
    animal: the race carries onlyAnimal (e.g. "dog"), matched as a word in the
    crawler's "Entered as" field. */
@@ -4017,6 +4348,7 @@ $("sheetBody").addEventListener("input",function(e){
   }
   if(t.dataset.ext!=null){c.extBuffs[parseInt(t.dataset.ext,10)]=t.value;save();return}
   if(t.dataset.sub){c.subclasses[t.dataset.sub]=t.value;save();return}
+  if(t.dataset.subnote){c.subclassNotes[t.dataset.subnote]=t.value;save();return}
   if(t.dataset.spon!=null){c.sponsors[parseInt(t.dataset.spon,10)]=t.value;save();return}
   if(t.dataset.ps){c.personalSpace[t.dataset.ps]=t.value;save();return}
   if(t.dataset.r){
@@ -4062,6 +4394,17 @@ function dmgPreview(){
     : "Resistance applies after DR. Damage that does not reach the value of one slot is ignored entirely.";
 }
 $("sheetBody").addEventListener("change",function(e){
+  /* picking a subclass works like picking the class */
+  if(e.target.dataset&&e.target.dataset.subpick){
+    var sc=active(), sk=e.target.dataset.subpick, sv=e.target.value;
+    var su=grantRevert(sc,"sub_"+sk);
+    if(su)toast("Removed "+su.name+"\u2019s bonuses from your sheet."+(su.textKept?" Its abilities text was edited, so it was left in place.":""));
+    sc.subOther[sk]=sv==="__other";
+    sc.subclasses[sk]=sv==="__other"?"":sv;
+    save();renderSheet();
+    if(sv&&sv!=="__other"){var spl=subPlan(sc,sk,sv);if(spl)grantPreview(sc,spl)}
+    return;
+  }
   /* the animal decides which animal-only races are offered */
   if(e.target.dataset&&e.target.dataset.f==="animalKind"){renderSheet();return}
   var c=active(); if(!c)return;
@@ -4095,7 +4438,12 @@ $("sheetBody").addEventListener("change",function(e){
     var idKey=key==="race"?"raceId":"classId";
     var pick=e.target.value?S.library[libKey].find(function(x){return x.id===e.target.value}):null;
     if(e.target.value&&!pick)return;
-    /* switching or clearing takes the old race/class's bonuses back off first */
+    /* switching or clearing takes the old race/class's bonuses back off first,
+       and a class takes its subclass picks with it */
+    if(key==="klass")["f6","f9","f12"].forEach(function(k){
+      grantRevert(c,"sub_"+k);
+      if(subOptions(c,k).some(function(o){return o.name===c.subclasses[k]})){c.subclasses[k]="";c.subclassNotes[k]=""}
+    });
     var undone=grantRevert(c,key);
     if(undone)toast("Removed "+undone.name+"\u2019s bonuses from your sheet."+(undone.textKept?" Its abilities text was edited, so it was left in place.":""));
     if(!pick){c[idKey]=null;c[key]="";save();renderSheet();return}
@@ -4106,12 +4454,58 @@ $("sheetBody").addEventListener("change",function(e){
 });
 
 $("sheetBody").addEventListener("click",function(e){
+  var rb=e.target.closest?e.target.closest("[data-roll]"):null;
+  if(rb){
+    var rc=active(); if(!rc)return;
+    var rp=rb.dataset.roll, rk=rp.slice(0,rp.indexOf(":")), rid=rp.slice(rp.indexOf(":")+1);
+    if(rk==="stat")rollCheck(rc,G_STATNAME[rid]+" check",[{l:rid.toUpperCase(),v:modOf(rc,rid)}]);
+    else if(rk==="skill"){var rs=rc.skills.find(function(x){return x.id===rid}); if(!rs)return;
+      var rst=rs.stat&&rs.stat!=="none"?rs.stat:"";
+      rollCheck(rc,(rs.name||"Skill")+" check",[{l:"Rank",v:parseInt(rs.rank,10)||0},{l:rst.toUpperCase(),v:modOf(rc,rst)}]);}
+    else if(rk==="hit"){var ra=rc.attacks.find(function(x){return x.id===rid}); if(!ra)return;
+      rollCheck(rc,(ra.name||"Attack")+" to hit",[{l:"Rank",v:parseInt(ra.hitRank,10)||0},{l:(ra.hitStat||"").toUpperCase(),v:modOf(rc,ra.hitStat)}]);}
+    else if(rk==="dmg"){var rd=rc.attacks.find(function(x){return x.id===rid}); if(!rd)return;
+      var rx=rollExpr(rd.dmgDice); if(!rx){toast("Give "+(rd.name||"this attack")+" some damage dice first, like 1d8.","warn");return}
+      var dmm=modOf(rc,rd.dmgStat);
+      recordRoll(rc,{label:(rd.name||"Attack")+" damage",total:rx.total+dmm,nat:0,
+        detail:rx.text+(dmm?(dmm<0?" \u2212 ":" + ")+Math.abs(dmm)+" "+rd.dmgStat.toUpperCase():"")+(rd.effects?" \u00b7 "+rd.effects:""),tier:"",mode:"normal"});}
+    return;
+  }
+  var ai=e.target.closest?e.target.closest("[data-atinfo]"):null;
+  if(ai){
+    var aid=ai.dataset.atinfo, abox=document.querySelector('[data-atinfobox="'+(window.CSS&&CSS.escape?CSS.escape(aid):aid)+'"]'), ac0=active();
+    var at0=ac0&&ac0.attacks.find(function(x){return x.id===aid}); if(!abox||!at0)return;
+    SKILL_INFO_OPEN[aid]=!SKILL_INFO_OPEN[aid];
+    if(SKILL_INFO_OPEN[aid]){abox.innerHTML=attackInfoHtml(ac0,at0);abox.style.display=""}else abox.style.display="none";
+    ai.setAttribute("aria-expanded",SKILL_INFO_OPEN[aid]?"true":"false");
+    return;
+  }
+  var pi=e.target.closest?e.target.closest("[data-spinfo]"):null;
+  if(pi){
+    var pid=pi.dataset.spinfo, pbox=document.querySelector('[data-spinfobox="'+(window.CSS&&CSS.escape?CSS.escape(pid):pid)+'"]'), pc0=active();
+    var sp0=pc0&&pc0.spells.find(function(x){return x.id===pid}); if(!pbox||!sp0)return;
+    SKILL_INFO_OPEN[pid]=!SKILL_INFO_OPEN[pid];
+    if(SKILL_INFO_OPEN[pid]){pbox.innerHTML=spellInfoHtml(sp0);pbox.style.display=""}else pbox.style.display="none";
+    pi.setAttribute("aria-expanded",SKILL_INFO_OPEN[pid]?"true":"false");
+    return;
+  }
+  var si=e.target.closest?e.target.closest("[data-skinfo]"):null;
+  if(si){
+    var sid=si.dataset.skinfo, box=document.querySelector('[data-skinfobox="'+(window.CSS&&CSS.escape?CSS.escape(sid):sid)+'"]'), sc0=active();
+    var sk0=sc0&&sc0.skills.find(function(x){return x.id===sid}); if(!box||!sk0)return;
+    SKILL_INFO_OPEN[sid]=!SKILL_INFO_OPEN[sid];
+    if(SKILL_INFO_OPEN[sid]){box.innerHTML=skillInfoHtml(sk0);box.style.display=""}else box.style.display="none";
+    si.setAttribute("aria-expanded",SKILL_INFO_OPEN[sid]?"true":"false");
+    return;
+  }
   var gt=e.target.closest?e.target.closest("[data-grant],[data-ungrant]"):null;
   if(gt){
     var gc=active(); if(!gc)return;
     if(gt.dataset.ungrant){var u=grantRevert(gc,gt.dataset.ungrant);save();renderSheet();
       if(u)toast("Removed "+u.name+"\u2019s bonuses from your sheet."+(u.textKept?" Its abilities text was edited, so it was left in place.":""));return}
-    var gk=gt.dataset.grant, gid=gk==="race"?gc.raceId:gc.classId;
+    var gk=gt.dataset.grant;
+    if(gk.indexOf("sub_")===0){var sbp=subPlan(gc,gk.slice(4),gc.subclasses[gk.slice(4)]);if(sbp)grantPreview(gc,sbp);return}
+    var gid=gk==="race"?gc.raceId:gc.classId;
     var ge=S.library[gk==="race"?"races":"classes"].find(function(x){return x.id===gid});
     if(ge)grantPreview(gc,grantPlan(ge,gk)); return;
   }
@@ -4187,7 +4581,7 @@ $("sheetBody").addEventListener("click",function(e){
   }
   if(t.id==="dbAdd"){c.debuffs.push({id:uid(),name:"",stacks:1,note:""});save();renderSheet();return}
   if(t.id==="skAdd"){c.skills.push(newSkill("",1));save();renderSheet();return}
-  if(t.id==="atAdd"){c.attacks.push({name:"",hitRank:"",hitStat:"",dmgDice:"",dmgStat:"",effects:""});save();renderSheet();return}
+  if(t.id==="atAdd"){c.attacks.push({id:uid(),name:"",hitRank:"",hitStat:"",dmgDice:"",dmgStat:"",effects:""});save();renderSheet();return}
   if(t.id==="skClear"){c.skills.forEach(function(s){s.marked=false});save();renderSheet();return}
   var row=t.closest(".tr"); if(!row)return;
   var ix=parseInt(row.dataset.ix,10);
