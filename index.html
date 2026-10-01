@@ -186,6 +186,18 @@ select{cursor:pointer}
 #dicePanel{position:fixed;right:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100vw - 24px));max-height:70vh;overflow:auto;z-index:45;background:var(--panel);border:1px solid var(--mortar);border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
 .rollrow{border-top:1px solid var(--hair);padding:6px 0}.rolltot{font-size:20px;font-weight:700}
 .rolltier{font-size:12px;font-weight:600}.rollrow.good .rolltier{color:var(--teal)}.rollrow.bad .rolltier{color:var(--rust)}
+.invsum{margin-top:8px;padding:8px 12px;border:1px solid var(--hair);border-radius:8px;background:var(--panel2);font-size:13px}
+.slotgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.slot{border:1px dashed var(--mortar);border-radius:8px;padding:8px}.slot.full{border-style:solid;background:var(--panel2)}
+.ihead{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.ihead .sp{flex:1}
+.icard{display:block!important;border:1px solid var(--hair);border-radius:8px;padding:8px 10px;margin-bottom:6px}
+.iacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.iacts .isel{max-width:150px}
+.iedit{margin-top:8px}.qty{display:flex;gap:4px;align-items:center}.qty .mono{min-width:22px;text-align:center}
+.rbadge{font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;border:1px solid currentColor}
+.r-bronze{color:#9a5b2a}.r-silver{color:#6e7780}.r-gold{color:#a8801a}.r-platinum{color:#4f8a8b}.r-legendary{color:#8a3fb3}.r-celestial{color:#2f6fd0}
+.hotslot{display:flex;gap:6px;align-items:center;min-height:34px}
+.invtools{display:flex;gap:6px;margin:6px 0}.invtools input{flex:1}.invcats{margin-bottom:8px;flex-wrap:wrap}
+.giftbox{margin-top:10px;padding:8px 12px;border:1px solid var(--teal);border-radius:8px}
 </style>
 </head>
 <body>
@@ -1238,6 +1250,16 @@ items:[
   "effect": "Once per fight, rope a target within 20ft with a Throwing check against its Evade; on a hit it gains the Held Debuff. Never tangles, can’t be cut by non-magical blades, and flies back to your hand after every throw.",
   "notes": "Deadeye class gear.",
   "page": ""
+ },
+ {
+  "name": "Earth Hobby Potion",
+  "category": "Potion",
+  "slot": "",
+  "weight": "",
+  "rarity": "Silver",
+  "effect": "Drink it to gain a new Earth hobby skill at Rank 3: an uncommon pastime that fascinates this season’s hosts. The hobby is rolled on Table 74 in the Core Rulebook (d20), or chosen, if your GM allows it. Drinking it is optional.",
+  "notes": "Comes in the Silver Earth Box every Earth-based Class receives. It can’t be sold or given to another crawler. Core Rulebook p. 321.",
+  "page": "321"
  }
 ],
 classes:[
@@ -1498,6 +1520,7 @@ async function load(){
     S.library=Object.assign({skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[]},d.library||{});
     S.encounter=d.encounter||{round:1,entries:[]};
     seedDefaults();
+    S.characters.forEach(function(ch){try{ensureInv(ch)}catch(e){}});
     setSave("loaded");
     /* migrations above only changed memory — write the current shape back so an
        export taken straight after loading is not still in the old format */
@@ -2852,6 +2875,24 @@ function pdfParsePages(pages){
     }).filter(function(d){return d.name&&d.effect&&d.name!=="DEBUFF NAME"});
   })();
 
+  /* ---------- Earth hobbies: Core Rulebook Table 74 (roll, skill name, field) ---------- */
+  pages.forEach(function(pg){
+    var its=pg.items.map(function(it){return {s:clean(it.str),x:it.transform[4],y:it.transform[5]}}).filter(function(it){return it.s});
+    var head=its.find(function(it){return /^TABLE \d+:\s*EARTH HOBBIES$/i.test(it.s)}); if(!head)return;
+    var folio=its.find(function(it){return it.y<45&&/^\d{1,3}$/.test(it.s)});
+    var hdrName=its.find(function(it){return /^SKILL NAME$/i.test(it.s)&&it.y<head.y}), hdrField=its.find(function(it){return /^FIELD$/i.test(it.s)&&it.y<head.y});
+    if(!hdrName||!hdrField)return;
+    var nums=its.filter(function(it){return /^\d{1,2}$/.test(it.s)&&it.x<hdrName.x-8&&it.x>hdrName.x-60&&it.y<hdrName.y&&it.y>45}).sort(function(p,q){return q.y-p.y});
+    nums.forEach(function(nm,i){
+      var top=nm.y+4, bot=i+1<nums.length?nums[i+1].y+4:nm.y-40;
+      var cell=function(x0,x1){return its.filter(function(it){return it.x>=x0&&it.x<x1&&it.y<=top&&it.y>bot}).sort(function(p,q){return q.y-p.y||p.x-q.x}).map(function(it){return it.s}).join(" ")};
+      var name=clean(cell(hdrName.x-4,hdrField.x-4)), field=clean(cell(hdrField.x-4,9999));
+      if(!name)return;
+      out.skills.push({name:name,stat:"",check:"",type:"Earth Hobby",range:"",damage:"",cooldown:"",limitations:"",
+        description:"Earth hobby: "+field+(field&&!/[.!?]$/.test(field)?".":"")+" Gained from an Earth Hobby Potion (Table 74, roll "+nm.s+").",
+        up5:"",up10:"",up15:"",hobbyRoll:+nm.s,page:String(folio?folio.s:pg.num)});
+    });
+  });
   /* ---------- items: magic gear ("NAME" / "Gear Slot: X" / effect) and the
      contents lists in each loot-box section ("GOLD BOXES": "• Item (effect)") ---------- */
   (function(){
@@ -3905,8 +3946,8 @@ function grantApply(c,plan,extra,itemIds){
   });
   if(plan.dr){c.drBuffs=String((parseFloat(c.drBuffs)||0)+plan.dr);rec.dr=plan.dr}
   if(plan.size){rec.size={prev:c.size||"",set:plan.size};c.size=plan.size}
-  var cur=(c[rec.field]||"").replace(/\s+$/,"");
-  c[rec.field]=cur+(cur?"\n\n":"")+plan.abilities; rec.text=plan.abilities;
+  if(plan.abilities){var cur=(c[rec.field]||"").replace(/\s+$/,"");
+    c[rec.field]=cur+(cur?"\n\n":"")+plan.abilities; rec.text=plan.abilities;}
   plan.items.forEach(function(it){
     if(itemIds&&itemIds.indexOf(it.id)<0)return;
     var li=S.library.items.find(function(x){return x.id===it.id}); if(!li)return;
@@ -3933,9 +3974,10 @@ function grantRevert(c,slot){
   if(rec.dr){var after=(parseFloat(c.drBuffs)||0)-rec.dr;
     c.drBuffs=(after===(parseFloat(rec.drPrev)||0))?(rec.drPrev==null?"":rec.drPrev):String(after)}
   if(rec.size&&c.size===rec.size.set)c.size=rec.size.prev;
-  var f=c[rec.field]||"", ix=f.indexOf(rec.text), kept=false;
-  if(ix>=0)c[rec.field]=(f.slice(0,ix)+f.slice(ix+rec.text.length)).replace(/\n{3,}/g,"\n\n").trim();
-  else kept=true;
+  var kept=false;
+  if(rec.text){var f=c[rec.field]||"", ix=f.indexOf(rec.text);
+    if(ix>=0)c[rec.field]=(f.slice(0,ix)+f.slice(ix+rec.text.length)).replace(/\n{3,}/g,"\n\n").trim();
+    else kept=true;}
   c.inventory=c.inventory.filter(function(x){return rec.items.indexOf(x.id)<0});
   if(rec.attacks)c.attacks=c.attacks.filter(function(a){return rec.attacks.indexOf(a.id)<0});
   c.boxes=c.boxes.filter(function(x){return rec.boxes.indexOf(x.id)<0});
@@ -4114,19 +4156,21 @@ function postPartyRoll(r){
 }
 function listenPartyRolls(){
   var code=rollCode(); if(!code||!fbDb||!fbUser)return;
+  try{listenGifts()}catch(e){}
   if(partyRollsUnsub&&partyRollsCode===code)return;
   if(partyRollsUnsub){try{partyRollsUnsub()}catch(e){}}
-  partyRollsCode=code; partyRolls=[];
-  partyRollsUnsub=rollsRef(code).orderBy("at","desc").limit(40).onSnapshot(function(qs){
+  partyRollsCode=code; partyRolls=[]; partyRollsUnsub=function(){};
+  var unsubR=rollsRef(code).orderBy("at","desc").limit(40).onSnapshot(function(qs){
     partyRolls=[]; qs.forEach(function(d){var x=d.data();x.id=d.id;partyRolls.push(x)});
     if(DICE.open)renderDice();
   },function(){});
+  if(typeof unsubR==="function")partyRollsUnsub=unsubR;
 }
 function rollAt(x){var a=x&&x.at; if(!a)return Date.now(); if(typeof a==="number")return a; if(a.toMillis)return a.toMillis(); if(a instanceof Date)return a.getTime(); return Date.parse(a)||Date.now()}
 function rollItem(r,showWho){
   var cls=/Critical Hit|Amazing|Standard Success/.test(r.tier||"")?"good":/Fail/.test(r.tier||"")?"bad":"";
   return '<div class="rollrow '+cls+'"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">'+(showWho?esc(r.who)+": ":"")+esc(r.label)+'</b>'
-    +'<span class="rolltot">'+esc(r.total)+'</span></div>'
+    +(r.mode==="use"?'':'<span class="rolltot">'+esc(r.total)+'</span>')+'</div>'
     +(r.tier?'<div class="rolltier">'+esc(r.tier)+'</div>':'')
     +'<div class="hint">'+esc(r.detail)+' \u00b7 '+esc(ago(rollAt(r)))+'</div></div>';
 }
@@ -4188,10 +4232,75 @@ function renderDice(){
 })();
 if(window.__CM_TEST__)window.__CM_TEST__.cloud=function(db,user,camp,gm){fbDb=db;fbUser=user;cloud.campaign=camp||"";cloud.gmCode=gm||""};
 
+/* ---- the Earth Hobby Potion: a Rank 3 Earth hobby skill ---- */
+/* The table's own 1000-hobby list, used alongside the Core Rulebook's Table 74
+   (imported with the book) and any Earth Hobby skills added in the Library. */
+var EARTH_HOBBY_LIST=["Abalone Fishing", "Abseiling (Rapelling)", "A Capella Singing", "Accordion", "Acid Etching", "Acro Dance (Acrobatic Dance)", "Acro Yoga", "Acrobatics", "Acrylic Painting", "Acting", "Action Figures (Making/ Collecting)", "Adventure Hobbies", "Aerobics", "Aeromodeling", "Aikido", "Air Guitar", "Air Hockey", "Airbrushing", "Airplane Spotting (Plane spotting)", "Airsoft", "Ajaeng", "Alphorn", "Alpine Hobbies/Sports", "Amateur Radio", "American Football", "Animal Hobbies", "Animal Racing (Camel, Dog, Pig, Donkey)", "Animation", "Anime", "Ant Keeping", "Antiques/Antiquing", "Aquaponics", "Aquarium", "Aquascaping", "Arcade Games", "Archery", "Architecture", "Armwrestling", "Art (Making/Collecting/Restoration)", "Astrology", "Astronomy (Stargazing)", "Atumpan", "ATV (All-Terrain Vehicle)", "Auctions (In-person/Online)", "Audiophilia", "Aurora Photography", "Australian Football (Aussie Rules)", "Autobiography Writing", "Autoharp", "Automobile (Racing/Maintenance/Restoration/Detailing)", "Aviation", "Ax (Making/Throwing)", "Baby Sitting", "Backpacking", "Backyard Games", "Badminton", "Bagpipes Playing", "Baking", "Ball Games", "Ballet", "Ballooning", "Balloons (Art/Decoration)", "Ballroom Dancing", "Banjo Playing", "Barbecuing", "Barre", "BASE Jumping", "Baseball", "Basketball", "Bass Guitar", "Bassoon Playing", "Baton Twirling", "Beach Sports( Volleyball/Football)", "Beachcombing", "Beading (Bead Work)", "Beat Making", "Beatboxing", "Beekeeping", "Beer (Tasting/Brewing)", "Bells ( Ringing/Making)", "Belly Dancing", "Biathlon", "Bikejoring", "Biking (Cycling)", "Bikini (Fashion/Modeling)", "Billiards (Cue Sports/Pool/Snooker)", "Bingo", "Birdwatching (Photography/Feeding)", "Blacksmithing", "Blogging", "Blow Painting", "Board Games", "Boats (Racing/Restoration)", "Bobsleighing (Bobsledding)", "Bocce", "Bodybuilding", "Bongo Drums", "Bonsai", "Books (Clubs/Reading/Collecting/Restoration)", "Boomerang (Throwing/Making)", "Botany", "Bouldering", "Bowling", "Boxing", "Braille", "Brazilian Jiu-jitsu", "Breakdancing", "Bubble Art", "Building", "Bull Riding", "Bungee Jumping", "Bus (Spotting/Riding)", "Bushcraft", "Busking", "Butchering", "Butterfly (Rearing/ Watching /Photography)", "Buttons (Collecting/Making)", "Cabaret", "Cabasa", "Caber Toss", "Cactus Growing", "Cake Art", "Cake Decorating", "Calcio Storico", "Calf Roping", "Calligraphy", "Camel (Riding / Racing/Safaris)", "Camogie", "Camping", "Candle (Making/Art)", "Canning", "Canoeing", "Canyoneering", "Capoeira", "Car (Maintenance/Restoration/Racing)", "Card Games", "Cardistry", "Cards (Making/Collecting)", "Carnivals", "Carolling", "Carpentry", "Carting", "Cartography (Map Making)", "Cartooning", "Carving (Wood/Soap)", "Catering", "Cave Diving (Spelunking)", "Cello Playing", "Ceramics (Collecting /Making/Art)", "Chalk Art", "Chariot Racing", "Checkers (Draughts)", "Cheerleading", "Cheese (Making /Tasting)", "Chess", "Chessboxing", "Church (Attending/Photography/History)", "Cigar (Smoking/Collecting/Making)", "Cinema", "Circus", "Clarinet Playing", "Clavichord Playing", "Cleaning", "Climbing (Rock/Indoor)", "Clouds (Gazing/Art/Photography)", "Clowning", "Clubbing", "CNC Art", "Coaching", "Coding", "Coffee (Roasting/Tasting/Art)", "Coin (Collecting/Art)", "Collage", "Collecting Hobbies (Coins, Stamps, Sneakers etc)", "Coloring", "Comedy (Stand-up Comedy)", "Comics (Reading/Making/Collecting)", "Competitive Eating", "Composing and Conducting Music", "Composting", "Computers", "Concerts", "Concrete Art", "Conlanging", "Confectionery", "Conga Drums", "Cooking", "Cosplay", "Couponing", "Crabbing", "Crafting Hobbies", "Creative Hobbies", "Creative Writing", "Cribbage", "Cricket", "Cricut", "Crocheting", "Croquet", "Cross Country Sports (Running/Skiing)", "Cross Stitch", "CrossFit", "Crossword Puzzles", "Cryptocurrency (Mining /Investing)", "Cryptography", "Cue Sports", "Curling", "Cycling", "Cymbals Playing", "Dambe Fighting", "Dancing", "Dandyism (La Sape)", "Dartchery", "Darts", "Dating", "Debate", "Decathlon", "Decorating", "Decoupage", "Deep Sea Fishing", "Deltiology (Postcard Collecting)", "Demolition Derby", "Design Hobbies", "Diabolo", "Diary Keeping (Diarizing)", "Diecast", "Digiscoping", "Digital Art", "Diorama Making", "Dirt (Art/Shaping)", "Dirt Bike Racing", "Disc Golf", "Diving (Pool/Cliff)", "DIY (Do It Yourself)", "Djembe Drumming", "DJing", "Dodgeball", "Dog (Grooming/Walking/Sledding/Training)", "Dolls (Making/ Collecting)", "Dolphin Watching", "Dominoes", "Doodling", "Dowsing", "Drag Racing", "Drag Show", "Drama", "Draughts(Checkers)", "Drawing", "Driving", "Drone (Flying /Photography)", "Drum Playing", "Duathlon", "Duck Herding", "Duelling", "Dumpster Diving", "Dutch Oven Cooking", "Dynamophone (Telharmonium) Playing", "Eating (Gourmet/Competitive)", "E-Books (Design/Writing)", "Eclipse Watching/Chasing", "E-Commerce", "Edible Art", "Editing(Books/Photos/Videos)", "Egg Shell Painting/Carving", "Egyptology", "Eightball", "Electric Guitar", "Electronic Music", "Electronics (Repair/Restoration)", "Embossing", "Embroidery", "Engraving", "Entertaining", "Entomology", "Equestrianism", "Escapology", "Eskrima", "E-Sports", "Etching", "Exercise", "Exhibitions", "Experimenting", "Extreme Sports", "Face Slapping", "Factory Tours", "Falconry", "Fancy Dress Parties", "Fantasy Sports", "Farmer’s Markets Visiting", "Farming", "Fashion Design", "Fashion Shows Attending", "Felting", "Fencing", "Feng Shui", "Ferris Wheel", "Festivals Attending", "Fiddling", "Field Hockey", "Fighting (Martial Arts)", "Figure Skating", "Filmmaking", "Fine Dining", "Finger Painting", "Finswimming", "Fire Eating", "Fire Fighting", "Fire Poi", "Fish Farming", "Fish Keeping (Aquariums)", "Fishing (Fly/Sport/Deep Sea)", "Flame Throwing", "Flamenco Dancing", "Flea Markets Visiting", "Floorball", "Flowboarding", "Flower (Growing/Collecting/ Arranging/Pressing)", "Flute Playing", "Fly Tying", "Flyboarding", "Flying (Helicopters/Planes)", "Foam Parties", "Foil Surfing", "Food (Making/Blogging/Photography/Tours)", "Foosball (Table Football)", "Football", "Foraging", "Forest Bathing", "Fort Building", "Fossicking", "Fossil Hunting", "Fractal Burning (Electric Wood Burning)", "Free diving", "Freerunning", "Freestyle (Rapping/Running/Swimming)", "Frisbee", "Fruit Picking", "Furniture (Making/Collecting/Restoration)", "Futsal", "Gambling", "Gaming", "Goly Tama Dancing", "Garage Band", "Garage Sales", "Gardening", "Gearhead", "Gemology", "Gemshorn Playing", "Genealogy", "Geocaching", "Geography", "Geology", "Ghost Hunting", "Gift Giving", "Gingerbread Art", "Glacier Hiking", "Glass (Blowing /Etching/Staining)", "Gliding", "Gnoming", "Go", "Go Karting", "Go-go Dancing", "Gold (Collecting/Craft/Investing)", "Golf", "Gong (Making/Playing)", "Gongoozling", "Gourmet (Cooking/Dining)", "Graffiti Art", "Graphic Design", "Grappling", "Grilling", "Grooming (Men’s Grooming)", "Guitar Playing", "Gun (Smithing/Collecting/Shooting/Restoration)", "Gym", "Gymnastics", "Gyotaku (Fish Printing)", "Gyrocopter", "Hacking (Ethical Hacking)", "Hair (Dressing/Art/Styling)", "Hammer Throw", "Hammocking", "Hand Painting", "Handball", "Handwriting Analysis", "Hang Gliding", "Hapkido", "Harmonica", "Harp Playing", "Harpastum", "Hat Making (Millinery)", "Healthy Living", "Helicopter (Flying/Riding)", "Heliskiing", "Herbalism", "Herping (Herpetology)", "High Jump", "Hikaru Dorodangu (Dirt Polishing)", "Hiking", "Hip Hop Music", "Hobby Horse", "Hockey", "Home Brewing", "Home Improvement", "Home Security", "Home Theatre", "Homing Pigeons", "Hookah (Shisha) Smoking", "Hooverball", "Horse Riding", "Horse Shoe (Art/Making)", "Horse Surfing", "Hot Air Ballooning", "Hot Rod", "Hot Tub Games", "Hula Hooping", "Hunting", "Hurling", "Hydroplane", "Hydroponics", "Ice Blocking", "Ice Climbing", "Ice Diving", "Ice Fishing", "Ice Hockey", "Ice Sailing", "Ice Sculpting", "Ice Skating", "Ice-cream (Tasting/Making)", "Icosathlon", "Igloo Building", "Illusion Art", "Illustration Art", "Improvisational Theater (Improv)", "Indoor Hobbies", "Indoor Sports (Cricket/Cycling/Hockey)", "Inline (Hockey/Skating)", "Insects (Collecting, Photography or Entomology)", "Instant Pot Cooking", "Interior design", "Inventing", "Investing", "Invisible Ink (Art/Tattoos)", "Ironing (Extreme Ironing)", "Jacuzzi (Hot Tub) Games", "Jal Tarang", "Jam Making", "Jam Skating", "Janggi (Korean Chess)", "Japanese Lantern Making/Art", "Jarrarium", "Javelin", "Jaw (Jew) Harp", "Jazz", "Jazzercise", "Jeet Kune Do", "Jenga", "Jet Skiing", "Jewellry Making", "Jigsaw Puzzles", "Jiu-Jitsu", "Jockeying", "Jogging", "Joinery", "Jorkyball", "Journaling", "Jousting", "Judo", "Juggling", "Juicing", "Jumping Rope", "Junk (Art/Collection)", "Kabaddi", "Kajukenbo", "Kamancheh", "Kanjira Playing", "Kanzashi Art", "Karaoke", "Karate", "Kart Racing", "Kayak Surfing", "Kayaking", "Kendama", "Kendo", "Kenpo", "Kettlebell Fitness", "Keyboard Playing", "Kickball", "Kickboxing", "Kicksled", "Kinetic Sculptures", "Kite Surfing", "Kites (Making or Flying)", "Kizomba Dancing", "Klezmer Music", "Knapping", "Kneeboarding", "Knife (Making/Throwing/Collecting/Restoration)", "Knitting", "Knot Tying (Knotting)", "Kombucha Brewing", "Korfball", "K-Pop Music", "Krav Maga", "Kubb", "Kung Fu", "Lacemaking", "Lacrosse", "Land Sailing", "Landscaping", "Language Learning", "Lapidary", "LARPing", "Laser Tag", "Lasso Throwing", "Latte Art", "Lawn Care", "Lawn Sports (Darts/Tennis/Bowling)", "Leaf (Art/Collecting)", "Learning", "Leather Crafting", "Lego (Building or Art)", "Lethwei", "Letter Writing", "Letterboxing", "Lightshow", "Line Dancing", "Linocut", "Listening to Music/Podcasts", "Lithography", "Livestreaming", "Lock Picking", "Log Rolling", "Long Jump", "Longboarding", "Luge (Skeleton)", "Lumberjack", "Machining", "Macramé", "Magic Tricks", "Magnet Art", "Mahjong", "Makeup Art", "Mall Visiting", "Mandala", "Mandolin Playing", "Manga", "Map Making (Cartography)", "Marathon and Ultra-marathon Running", "Marble (Playing/Collecting)", "Marble Art", "Marbles (Collecting or Playing)", "Marching", "Marimba", "Marionette", "Marksmanship", "Martial Arts", "Mask (Making/Collecting)", "Masquerade Parties", "Massaging", "Matchstick Models", "Mechanics", "Medieval (Art/Re-enactment/History)", "Meditation", "Memoir Writing", "Memorabilia Collecting", "Memory Training", "Mentalism", "Metal Detecting", "Metallurgy", "Metalworking", "Metaverse", "Meteorology", "Microscopy", "Miming", "Mineral Collecting", "Mini Golf (Miniature Golf)", "Miniature Art", "Minimalism", "Mixed Martial Arts (MMA)", "Mixology", "Model Making ( Aircraft, Cars, Trains, Ships)", "Modeling", "Monopoly", "Monster Truck Racing", "Mooing (Competitive)", "Mosaic", "Motocross", "Motorcycles (Racing/Restoration/Maintenance)", "Mountain Biking", "Mountain Climbing (Mountaineering)", "Movies (Watching/Making)", "Muay Thai", "Muraling", "Museum Visiting", "Mushroom (Farming/Hunting)", "Music (Listening /Making)", "Music Album (LP) collecting", "Nail Art", "NASCAR Racing", "Nature (Art/Study/Conservation)", "Necklace (Making/Collecting)", "Needle Felting", "Needlepoint", "Needlework", "Nerts", "Netball", "Ninja Warrior", "Ninjutsu (Ninjitsu)", "Noodling", "Nordic Skiing", "Novels (Reading or Writing)", "Numsimatics", "Oboe Playing", "Observatory", "Obstacle Course/ Running", "Ocarina Playing", "Oceanography", "Offroading", "Oil Painting", "Online Activities (Gaming/Poker)", "Opal Art", "Opera (Listening or Singing)", "Orchestra", "Orchid Growing", "Organ Playing", "Organic Farming", "Organizing", "Orienteering (Navigation)", "Origami", "Ornithology", "Ostrich Racing", "Ouija Board", "Outdoor Activities", "Outrigger Canoeing", "Paddle Boarding", "Pachisi", "Paddle Ball", "Pageants Attending", "Paintball", "Painting", "Paludarium", "Paper Crafts", "Papier Mache", "Parachuting", "Parades Attending", "Paragliding", "Park Visiting", "Parkour", "Partying", "Pen Pal", "Penmanship", "People Watching", "Performance Arts", "Pet(Sitting/Grooming)", "Petting Zoo", "Philately (Stamp Collecting)", "Photography", "Piano Playing", "Picnicking", "Piercing Arts", "Pig Racing", "Pigeon (Keeping/ Racing)", "Pilates", "Piloting", "Ping Pong (Table Tennis)", "Pipe (Making/Smoking)", "Planespotting", "Planetarium", "Plastic Art", "Playdough Modelling", "Poetry", "Poi Making", "Poker", "Pole Climbing", "Pole Dancing", "Pole Vault", "Polo", "Pontoon Boats", "Pool (Billiards)", "Pottery", "Power Lifting", "Printing-3D", "Pub Crawling", "Pumpkin Art", "Puppetry", "Puzzles", "Pyrography", "Pyrotechnics", "Qawwali", "Qianball", "Qigong", "Quad Biking", "Quadcopter Flying", "Quadrathlon", "Quadruplane Models", "Quail Keeping", "Quartz Collecting", "Quatrefoil", "Quickstep Dancing", "Quidditch", "Quilling", "Quilting", "Quiz Games", "Quoits", "Race Walking", "Racquetball", "Rafting", "Rappelling (Abseiling)", "Rapping", "Raspberry Pi", "RC-Remote Control (Cars, Planes, Ships)", "Reading", "Robotics", "Rock Climbing", "Roller Skating", "Roller Blading", "Roller Skiing", "Rowing", "Rubik’s Cube (Solving/Art)", "Rugby", "Running (Marathon/Trail/Cross-country)", "Rock(Shaping/Carving/Collecting/Balancing)", "Recreational Vehicles (RV)", "Reggae Music", "Relaxing", "Radio (Listening/Monitoring)", "Reiki", "Rodeo", "Real Estate (Investing/Flipping)", "Rockets (Amateur Rocketry)", "Recycling", "Recycle Art", "Road Trips", "Roller Coasters", "Racing", "Relay Sports", "Recorder Playing", "Rogaining", "Role Playing", "Safari", "Sailing", "Sake Tasting", "Samba", "Sambo", "Sand Art (Sand Castles)", "Saxophone", "Scale Models", "Scavenger Hunt", "Scootering", "Scouting", "Scrabble", "Scrapbooking", "Scuba Diving", "Sculling (Rowing)", "Sculpting", "Scutelliphily", "Seashells (Art/Collecting)", "Seawalking", "Segway Polo", "Sewing", "Shadow Puppetry", "Shooting", "Shopping", "Shot Put", "Show Jumping", "Shuffleboard", "Singing", "Skateboarding", "Skating (Ice/Roller)", "Skeet Shooting", "Skeleton", "Sketching", "Skiing", "Skijoring", "Skimboarding", "Skipping Rope (Jumping Rope)", "Skydiving", "Slacklining", "Sledding", "Slingshot", "Sneaker Collecting", "Snorkelling", "Snowboarding", "Snowmobiling", "Snowshoeing", "Snuba diving", "Soap (Making/ Art)", "Soccer", "Social Media", "Softball", "Solitaire", "Songwriting", "Soul Cycle", "Spelunking (Caving)", "Sports", "Sprouting", "Squash", "Stamp Collecting (Philately)", "Stargazing", "Steeplechase", "Stone Skipping", "Stop Motion Art", "Storm Chasing", "Storytelling", "Street Art", "Street Luge", "Stretching", "Sudoku", "Sunbathing", "Surf skiing", "Surfing", "Survivalism", "Sushi", "Swimming", "Sword (Making/Collecting)", "Systema", "Table Football (Foosball)", "Table Tennis (Ping Pong)", "Tae Kwon Do", "Tag", "Tai Chi", "Tailoring", "Tambourine Playing", "Tandem Biking", "Tang Soo Do", "Tango", "Tap Dancing", "Tapestry Making", "Tarot Cards", "Tatting", "Tattooing (Tattoo art)", "Taxidermy", "Tea (Making/Tasting)", "Teaching/Tutoring", "Technology", "Tennis", "Teqball", "Tequila (Making/Tasting)", "Terrariums", "Textile (Making/Arts/Crafts)", "Theatre Acting", "Theme Park Visiting", "Theremin Playing", "Thrifting", "Tie and Dye", "Tinkering", "Tobogganing", "Toe Wrestling", "Toothpick (Models/Art)", "Topiary", "Toys (Playing/Making/ Collecting)", "Trail (Running/Biking)", "Training Animals (Dogs/Cats/Horses)", "Trainspotting", "Trampolining", "Trap Shooting", "Trapeze", "Trapping", "Travel", "Treasure Hunting", "Tree Climbing", "Tree House Making", "Triangle Playing", "Triathlons", "Triple Jump", "Trivia", "Trombone Playing", "Trumpet Playing", "Tuba Playing", "Tubing", "Tug of War", "TV Watching", "UFO Hunting", "Ukiyo-e", "Ukulele", "Ultimate Disc/Frisbee", "Ultra marathon", "Ultralight aviation", "Umpiring", "Underwater Photography/Videography", "Underwater Scooter", "Underwater sports (Hockey/Football)", "Unicycling", "Uno", "Upcycling", "Upholstery", "Urban Exploration/Hiking", "Urban Farming/Gardening", "Urban Survival/Prepping", "Vale Tudo", "Vaudeville", "Veena Playing", "Veganism/Vegetarian Hobbies", "Vegetable Gardening", "Vehicle Hobbies(Racing/Collecting/Restoration)", "Veneering", "Ventriloquism", "Vibraphone Playing", "Video Editing", "Video Games (Playing/Collecting)", "Videography", "Videophilia", "Vintage Hobbies (Collecting/Restoration)", "Vinyl Art", "Vinyl Record Collecting", "Viola Playing", "Violin Playing", "Virtual Reality (VR)", "Volleyball", "Volunteering", "Waboba", "Waxing", "Wakeboarding", "Wakesurfing", "Walking", "Wall Climbing", "Waltz", "War (Games/Re-enactment)", "War Hammer", "Warli Art", "Washi Tape Art", "Waste Art (Recycle Art)", "Watches (Making/ Collecting/ Restoration)", "Watching (TV/Movies/Sports)", "Water Sports (Polo, Ski, JetSki)", "Watercolor Painting", "Wax (Sculptures/Art)", "Weather Watching", "Weaving", "Web Design/ Web Development", "Webtoons", "Wedding (Decoration/Planning)", "Weight Lifting (Weight Training)", "Welding", "Whale Watching", "Wheelchair Sports (Basketball/Marathon/Tennis)", "Whiskey (Making/Tasting)", "Whist", "White Water Rafting", "Whittling", "Wiffle Ball", "Wildlife Watching", "Window Shopping", "Windsurfing", "Wine (Tasting/Making)", "Wing Chun", "Wingsuit Flying (Wingsuiting)", "Witchcraft", "Wood Burning (Pyrography)", "Wood Carving", "Woodball", "Woodchopping", "Woodturning", "Woodworking", "Word Games", "Wreath Making", "Wrestling", "Writing", "Wushu (Kung Fu)", "Xalam", "Xare", "Xbox Gaming", "Xenomania", "Xeriscaping", "X-games", "Xiangqi (Chinese Chess)", "Xing Yi Quan", "Xpogo (Extreme Pogo)", "X-ray (Photography/Art)", "Xylography", "Xylophone", "Yak Polo", "Yard Design", "Yard Games", "Yard Sales", "Yarn Art", "Yarn Bombing", "Yatching", "Yodeling", "Yoga", "Yoghurt Making", "Yo-yo", "Yukigassen", "Yurt Making", "Zampogna", "Zaouli Dance", "Zebra Racing", "Zen Gardens", "Zentangle Art", "Zero Gravity Flights", "Zine Making", "Ziplining", "Zither", "Zoo Volunteer", "Zoology", "Zorbing", "Zourkhaneh", "Zulu Dance", "Zumba", "Zydeco"];
+function hobbyList(){return S.library.skills.filter(function(sk){return /earth hobby/i.test(sk.type||"")}).sort(function(a,b){return (a.hobbyRoll||99)-(b.hobbyRoll||99)||a.name.localeCompare(b.name)})}
+function hobbyPools(){
+  var lib=hobbyList(), book=lib.filter(function(h){return h.hobbyRoll}), own=lib.filter(function(h){return !h.hobbyRoll});
+  var taken={}; lib.forEach(function(h){taken[gNorm(h.name)]=1});
+  var table=EARTH_HOBBY_LIST.filter(function(n){return !taken[gNorm(n)]});
+  return {book:book,own:own,table:table,all:book.map(function(h){return h.name}).concat(own.map(function(h){return h.name}),table)};
+}
+function drinkHobby(c,ix){
+  var row=c.inventory[ix]; if(!row)return;
+  var P=hobbyPools(), picked="", note="";
+  function body(){
+    var opt=function(n,label){return '<option value="'+esc(n)+'"'+(picked===n?" selected":"")+'>'+esc(label||n)+'</option>'};
+    return '<h2 style="font-size:20px;margin-bottom:6px">Drink the Earth Hobby Potion?</h2>'
+      +'<p class="hint" style="margin:0 0 10px">You gain a new Earth hobby skill at Rank 3. The rulebook rolls it on Table 74 (a d20), or lets you choose if your GM allows it. Drinking it is optional.</p>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn" id="hobRoll">Roll a d20 on Table 74</button>'
+      +'<button class="btn" id="hobRollAll">Roll on all '+P.all.length+' hobbies</button></div>'
+      +(note?'<div style="margin-bottom:6px">'+note+'</div>':'')
+      +'<label class="f"><span class="lab">Hobby</span><select id="hobPick"><option value="">Choose, or roll above\u2026</option>'
+      +(P.book.length?'<optgroup label="Core Rulebook, Table 74">'+P.book.map(function(h){return opt(h.name,h.hobbyRoll+". "+h.name)}).join("")+'</optgroup>':'')
+      +(P.own.length?'<optgroup label="Your own hobbies">'+P.own.map(function(h){return opt(h.name)}).join("")+'</optgroup>':'')
+      +'<optgroup label="The table\u2019s hobby list">'+P.table.map(function(n){return opt(n)}).join("")+'</optgroup></select></label>'
+      +'<label class="f" style="margin-top:6px"><span class="lab">Or type your own</span><input type="text" id="hobName" placeholder="Any hobby your GM okays"></label>'
+      +(P.book.length?'':'<p class="hint" style="margin:4px 0 0">Import the Core Rulebook in the Library to add Table 74\u2019s 20 hobbies.</p>')
+      +'<div id="hobDesc" class="hint" style="margin-top:6px"></div>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="hobNo">Not now</button><button class="btn pri" id="hobYes">Drink it</button></div>';
+  }
+  function describe(n){var hb=hobbyList().find(function(x){return x.name===n});return hb?(hb.description||""):(n?"From your table\u2019s hobby list.":"")}
+  function wire(){
+    var desc=function(){var el=$("hobDesc"),pk=$("hobPick");if(el&&pk)el.textContent=describe(pk.value)};
+    $("hobNo").addEventListener("click",closeModal);
+    $("hobRoll").addEventListener("click",function(){
+      var n=rnd(20), hb=P.book.find(function(x){return x.hobbyRoll===n});
+      picked=hb?hb.name:""; note=hb?"":'Rolled <b>'+n+'</b>. Look it up on Table 74 in your Core Rulebook, and type it below.';
+      recordRoll(c,{label:"Earth Hobby Potion, Table 74",total:n,nat:0,detail:"d20 ["+n+"]"+(hb?" \u2192 "+hb.name:""),tier:"",mode:"normal"});
+      openModal(body()); wire(); desc();
+    });
+    $("hobRollAll").addEventListener("click",function(){
+      var n=rnd(P.all.length); picked=P.all[n-1]; note="";
+      recordRoll(c,{label:"Earth Hobby Potion, all hobbies",total:n,nat:0,detail:"d"+P.all.length+" ["+n+"] \u2192 "+picked,tier:"",mode:"normal"});
+      openModal(body()); wire(); desc();
+    });
+    $("hobPick").addEventListener("change",function(){picked=$("hobPick").value;desc()});
+    $("hobYes").addEventListener("click",function(){
+      var name=($("hobName").value||"").trim()||$("hobPick").value||"";
+      if(!name){toast("Choose or roll a hobby first.","warn");return}
+      var ex=gFind(c.skills,name);
+      if(ex){ex.rank=Math.max(parseInt(ex.rank,10)||0,3)}else{var sk=newSkill(name,3);sk.notes="Earth hobby (Earth Hobby Potion)";c.skills.push(sk)}
+      var q=parseInt(row.qty,10)||1; if(q>1)row.qty=q-1; else c.inventory.splice(c.inventory.indexOf(row),1);
+      save(); closeModal(); renderInv(); renderSheet();
+      toast("You drank the Earth Hobby Potion: "+name+" at Rank 3.","good");
+    });
+  }
+  openModal(body()); wire();
+}
+document.addEventListener("click",function(e){
+  var t=e.target.closest?e.target.closest("[data-drink]"):null; if(!t)return;
+  var c=active(); if(c)drinkHobby(c,parseInt(t.dataset.drink,10));
+});
 /* ---- what a skill does, shown under its row on the sheet ---- */
 var SKILL_INFO_OPEN={};
 function skillInfoHtml(s){
   var lib=gLib("skills",s.name)||gLib("spells",s.name);
+  if(!lib&&(/earth hobby/i.test(s.notes||"")||EARTH_HOBBY_LIST.some(function(n){return gNorm(n)===gNorm(s.name)})))
+    return '<div class="hint" style="margin-bottom:6px">Earth hobby \u00b7 from an Earth Hobby Potion</div>'
+      +'<div style="line-height:1.5">An Earth pastime gained from an Earth Hobby Potion. The Core Rulebook suggests letting crawlers use these whenever the hobby is even loosely related, so pitch your GM a use whenever it might fit.</div>';
   return libInfoHtml(lib,s.rank,!!(lib&&!gLib("skills",s.name)),s.name);
 }
 function spellInfoHtml(sp){
@@ -4633,221 +4742,525 @@ var SLOTS=[["head","Head","helmets, bandanas, hats"],
            ["feet","Feet","shoes, boots, sandals"]];
 var RARITY=["Bronze","Silver","Gold","Platinum","Legendary","Celestial"];
 
+/* ================= inventory: one record per item, knowing where it is ================= */
+/* The rulebook's places: the Inventory (extradimensional, weightless), the
+   Hotlist (instant use), what you have Equipped (only equipped gear grants
+   bonuses), and your Personal Space (reached from saferooms). Each item is one
+   record {id,name,qty,weight,slot,notes,libId,category,rarity,where,at}; the old
+   c.equipped / c.hotlist strings are kept in step so everything else still works. */
+var EQUIP_KEYS=[["head","Head"],["torso","Torso"],["arms","Arms"],["legs","Legs"],["feet","Feet"],["gloves","Gloves"],
+  ["hand1","Main hand"],["hand2","Off hand"],["belt","Belt"],["cape","Cape"]];
+for(var ai=0;ai<10;ai++)EQUIP_KEYS.push(["acc"+ai,"Accessory "+(ai+1)]);
+var INVUI={q:"",cat:"all",sort:"name",edit:null,info:{}};
+var INV_CATS=["Gear","Potion","Scroll","Spellbook","Loot","Crafting table","Junk","Other"];
+function slotLabel(k){var e=EQUIP_KEYS.find(function(x){return x[0]===k});return e?e[1]:k}
+function libItem(it){return (it.libId&&S.library.items.find(function(l){return l.id===it.libId}))||gLib("items",it.name)||null}
+function itemCat(it){
+  var l=libItem(it), c=it.category||(l&&l.category)||"";
+  if(c)return INV_CATS.indexOf(c)>=0?c:(/potion/i.test(c)?"Potion":/scroll/i.test(c)?"Scroll":/table/i.test(c)?"Crafting table":c);
+  var n=it.name||"";
+  if(/potion|elixir|tonic/i.test(n))return "Potion"; if(/scroll/i.test(n))return "Scroll"; if(/spellbook/i.test(n))return "Spellbook";
+  if(/junk|scrap/i.test(n))return "Junk"; if(it.slot)return "Gear"; return "Other";
+}
+function itemRarity(it){var l=libItem(it);return it.rarity||(l&&l.rarity)||""}
+function itemEffect(it){var l=libItem(it);return (l&&l.effect)||""}
+function noTransfer(it){var l=libItem(it);return /can.?t be (?:sold or )?(?:given|transferred|sold)|may not be sold or transferred/i.test((l&&(l.notes+" "+l.effect))||it.notes||"")}
+function isConsumable(it){var c=itemCat(it);return c==="Potion"||c==="Scroll"||/bandage|dynamite|grenade|bomb|food|ration|meal/i.test(it.name||"")}
+function itemLabel(it){var q=parseInt(it.qty,10)||1;return it.name+(q>1?" \u00d7"+q:"")}
+function newItem(fields){return Object.assign({id:uid(),name:"",qty:1,weight:"",slot:"",notes:"",where:"inv",at:null,added:Date.now()},fields||{})}
+function itemFromLib(l,qty){return newItem({name:l.name,qty:qty||1,weight:l.weight||"",slot:l.slot||"",notes:(l.effect||"").slice(0,200),libId:l.id,category:l.category||"",rarity:l.rarity||""})}
+/* bring a crawler's inventory up to this model, once, and tidy it every time */
+function ensureInv(c){
+  if(!c.inventory)c.inventory=[];
+  if(!c.equipped)c.equipped={};
+  if(!Array.isArray(c.equipped.accessories))c.equipped.accessories=[];
+  if(!Array.isArray(c.hotlist))c.hotlist=[];
+  if(!Array.isArray(c.hotFree))c.hotFree=[];
+  c.inventory.forEach(function(it){
+    if(!it.id)it.id=uid(); if(!it.where)it.where="inv"; if(it.qty===""||it.qty==null)it.qty=1;
+    if(!it.libId){var l=gLib("items",it.name);if(l)it.libId=l.id}
+  });
+  if(c.invV!==2){
+    var spellNames=(c.spells||[]).map(function(s){return gNorm(s.name)}).concat((c.skills||[]).map(function(s){return gNorm(s.name)}));
+    function claim(name,where,at){
+      var nm=String(name||"").trim(); if(!nm)return;
+      var qm=nm.match(/^(.*?)\s*[\u00d7x]\s*(\d+)$/), base=qm?qm[1].trim():nm, qty=qm?+qm[2]:1;
+      var ex=c.inventory.find(function(it){return it.where==="inv"&&gNorm(it.name)===gNorm(base)});
+      if(ex){
+        var have=parseInt(ex.qty,10)||1;
+        if(where==="equip"&&have>1){ex.qty=have-1;ex=newItem({name:ex.name,weight:ex.weight,slot:ex.slot,notes:ex.notes,libId:ex.libId});c.inventory.push(ex)}
+        ex.where=where;ex.at=at;return;
+      }
+      var l=gLib("items",base);
+      var it=l?itemFromLib(l,qty):newItem({name:base,qty:qty});
+      it.where=where;it.at=at;c.inventory.push(it);
+    }
+    EQUIP_KEYS.forEach(function(k){
+      if(/^acc\d/.test(k[0]))claim(c.equipped.accessories[+k[0].slice(3)],"equip",k[0]);
+      else claim(c.equipped[k[0]],"equip",k[0]);
+    });
+    c.hotlist.forEach(function(txt,i){
+      var t=String(txt||"").trim(); if(!t)return;
+      var base=t.replace(/\s*[\u00d7x]\s*\d+$/,"").trim();
+      var itemish=gLib("items",base)||c.inventory.some(function(it){return it.where==="inv"&&gNorm(it.name)===gNorm(base)})
+        ||(/potion|scroll|bandage|dynamite|grenade|bomb|elixir|\u00d7\s*\d/i.test(t)&&spellNames.indexOf(gNorm(base))<0);
+      if(itemish)claim(t,"hot",i); else c.hotFree[i]=t;
+    });
+    c.invV=2;
+  }
+  syncInv(c);
+}
+/* keep the old string fields matching the items */
+function syncInv(c){
+  var eq=c.equipped;
+  EQUIP_KEYS.forEach(function(k){if(/^acc\d/.test(k[0]))eq.accessories[+k[0].slice(3)]="";else eq[k[0]]=""});
+  var hot=[];for(var i=0;i<10;i++)hot.push(c.hotFree[i]||"");
+  c.inventory.forEach(function(it){
+    if(it.where==="equip"){if(/^acc\d/.test(it.at))eq.accessories[+String(it.at).slice(3)]=it.name;else eq[it.at]=it.name}
+    if(it.where==="hot"&&it.at!=null)hot[it.at]=itemLabel(it);
+  });
+  c.hotlist=hot;
+}
+function itemAt(c,where,at){return c.inventory.find(function(it){return it.where===where&&String(it.at)===String(at)})}
+/* equipping applies what the item's effect can be pinned down to; unequipping takes it back */
+function itemPlan(it){
+  var eff=itemEffect(it)||it.notes||"";
+  var p=grantPlan({id:"item:"+it.id,name:it.name,statBonus:eff,skillBonus:"",abilities:"",drawbacks:"",drBonus:""},"item_"+it.id,{strict:true});
+  var drm=eff.match(/\+(\d+)\s*(?:DR\b|Damage Resistance)/i); p.dr=drm?+drm[1]:0;
+  p.abilities="";p.items=[];p.boxes=[];p.natural=[];p.size="";
+  return p;
+}
+function itemBonusText(p){return p.fixed.map(function(t){return (t.n>0?"+":"")+t.n+" "+t.label}).concat(p.dr?["+"+p.dr+" DR"]:[]).join(", ")}
+function equipItem(c,it,key){
+  if(key==="hand2"&&c.equipped.twoHanded){toast("Your main hand needs both hands. Untick two-handed first.","warn");return}
+  var cur=itemAt(c,"equip",key); if(cur&&cur!==it)unequipItem(c,cur,true);
+  if((parseInt(it.qty,10)||1)>1){it.qty=(parseInt(it.qty,10)||1)-1;it=newItem({name:it.name,weight:it.weight,slot:it.slot,notes:it.notes,libId:it.libId,category:it.category,rarity:it.rarity});c.inventory.push(it)}
+  if(it.where==="equip"&&it.at!==key)grantRevert(c,"item_"+it.id);
+  it.where="equip";it.at=key;
+  var p=itemPlan(it), msg="";
+  if(p.fixed.length||p.dr){grantApply(c,p,[],[]);msg=": "+itemBonusText(p)}
+  syncInv(c);save();renderInv();renderSheet();
+  toast("Equipped "+it.name+" ("+slotLabel(key)+")"+msg+".",msg?"good":"");
+}
+function unequipItem(c,it,quiet){
+  var had=grantRevert(c,"item_"+it.id);
+  it.where="inv";it.at=null;
+  var same=c.inventory.find(function(x){return x!==it&&x.where==="inv"&&gNorm(x.name)===gNorm(it.name)&&(x.libId||"")===(it.libId||"")});
+  if(same){same.qty=(parseInt(same.qty,10)||1)+(parseInt(it.qty,10)||1);c.inventory.splice(c.inventory.indexOf(it),1)}
+  syncInv(c);
+  if(!quiet){save();renderInv();renderSheet();toast("Unequipped "+it.name+(had?", and took its bonuses off":"")+".")}
+}
+function moveItem(c,it,where,at){
+  if(it.where==="equip")grantRevert(c,"item_"+it.id);
+  it.where=where;it.at=at==null?null:at;
+  if(where==="inv"){var same=c.inventory.find(function(x){return x!==it&&x.where==="inv"&&gNorm(x.name)===gNorm(it.name)&&(x.libId||"")===(it.libId||"")});
+    if(same){same.qty=(parseInt(same.qty,10)||1)+(parseInt(it.qty,10)||1);c.inventory.splice(c.inventory.indexOf(it),1)}}
+  syncInv(c);save();renderInv();renderSheet();
+}
+function inFight(){return !!(S.encounter&&S.encounter.entries&&S.encounter.entries.length)}
+function itemInfoHtml(it){
+  var l=libItem(it), bits=[itemCat(it),itemRarity(it),(l&&l.slot)||it.slot?((l&&l.slot)||it.slot)+" slot":"",it.weight?it.weight+" lb":""].filter(Boolean);
+  var h='<div class="hint" style="margin-bottom:6px">'+esc(bits.join(" \u00b7 "))+'</div>';
+  if(l&&l.effect)h+='<div style="line-height:1.5">'+esc(l.effect).replace(/\n+/g,"<br>")+'</div>';
+  if(l&&l.notes)h+='<div class="hint" style="margin-top:4px">'+esc(l.notes)+'</div>';
+  if(!l&&it.notes)h+='<div style="line-height:1.5">'+esc(it.notes)+'</div>';
+  if(!l&&!it.notes)h+='<p class="hint" style="margin:0">'+esc(it.name||"This item")+' isn\u2019t in your Library. Add it there (or import its book) to see its rules here.</p>';
+  if(l){var pl=itemPlan(it);if(pl.fixed.length||pl.dr)h+='<div style="margin-top:6px"><b>When equipped:</b> '+esc(itemBonusText(pl))+'</div>'}
+  h+=mentionsHtml((l&&l.effect)||it.notes||"",it.name);
+  if(l&&(l.source||l.page))h+='<div class="hint" style="margin-top:6px">'+esc([l.source,l.page?"p. "+l.page:""].filter(Boolean).join(", "))+'</div>';
+  return h;
+}
+function rarityBadge(r){return r?'<span class="rbadge r-'+esc(r.toLowerCase())+'">'+esc(r)+'</span>':''}
+function itemCard(c,it,lift){
+  var cat=itemCat(it), q=parseInt(it.qty,10)||1, open=INVUI.edit===it.id, heavy=lift&&parseFloat(it.weight)>lift;
+  var actions=[];
+  if(it.where==="inv"){
+    actions.push('<select class="isel" data-equipto="'+it.id+'"><option value="">Equip\u2026</option>'+EQUIP_KEYS.map(function(k){
+      var occ=itemAt(c,"equip",k[0]);return '<option value="'+k[0]+'">'+k[1]+(occ?" (swap "+esc(occ.name)+")":"")+'</option>'}).join("")+'</select>');
+    actions.push('<button class="btn sm" data-act="hot" data-id="'+it.id+'">To Hotlist</button>');
+    actions.push('<button class="btn sm" data-act="space" data-id="'+it.id+'">To Personal Space</button>');
+  }
+  if(it.where==="space")actions.push('<button class="btn sm" data-act="stow" data-id="'+it.id+'">Take to Inventory</button>');
+  if(isConsumable(it)&&it.where!=="space")actions.push('<button class="btn sm pri" data-act="use" data-id="'+it.id+'">Use</button>');
+  if(it.where!=="space"&&rollCode()&&fbDb&&fbUser)actions.push('<button class="btn sm" data-act="give" data-id="'+it.id+'"'+(noTransfer(it)?' disabled title="This item can\u2019t be given away"':'')+'>Give</button>');
+  return '<div class="tr icard" data-id="'+it.id+'">'
+    +'<div class="ihead"><b class="iname">'+esc(it.name||"(unnamed item)")+'</b>'+rarityBadge(itemRarity(it))
+    +'<span class="hint">'+esc(cat)+(it.slot?" \u00b7 "+esc(it.slot):"")+'</span><span class="sp"></span>'
+    +'<span class="qty"><button class="btn sm" data-act="minus" data-id="'+it.id+'" aria-label="One fewer">\u2212</button><span class="mono">'+q+'</span><button class="btn sm" data-act="plus" data-id="'+it.id+'" aria-label="One more">+</button></span>'
+    +'<button class="btn sm" data-act="info" data-id="'+it.id+'" aria-label="What is this?" style="min-width:26px">?</button>'
+    +'<button class="btn sm" data-act="edit" data-id="'+it.id+'">'+(open?"Done":"Edit")+'</button>'
+    +'<button class="x" data-act="del" data-id="'+it.id+'" aria-label="Remove">\u00d7</button></div>'
+    +(heavy?'<div class="hint" style="color:var(--rust)">'+esc(it.weight)+' lb is heavier than your '+lift+' lb lift limit, so you couldn\u2019t pick it up to store it.</div>':'')
+    +(actions.length?'<div class="iacts">'+actions.join("")+'</div>':'')
+    +(open?'<div class="grid g4 iedit">'
+      +'<label class="f"><span class="lab">Name</span><input type="text" list="itemnames" data-i="name" data-id="'+it.id+'" value="'+esc(it.name)+'"></label>'
+      +'<label class="f"><span class="lab">Weight (lb)</span><input type="number" data-i="weight" data-id="'+it.id+'" value="'+esc(it.weight)+'"></label>'
+      +'<label class="f"><span class="lab">Gear slot</span><input type="text" data-i="slot" data-id="'+it.id+'" value="'+esc(it.slot)+'" placeholder="Head, Hands/Holding\u2026"></label>'
+      +'<label class="f"><span class="lab">Category</span><select data-i="category" data-id="'+it.id+'">'+INV_CATS.map(function(k){return '<option'+(cat===k?" selected":"")+'>'+k+'</option>'}).join("")+'</select></label>'
+      +'<label class="f" style="grid-column:1/-1"><span class="lab">Notes</span><input type="text" data-i="notes" data-id="'+it.id+'" value="'+esc(it.notes)+'"></label></div>':'')
+    +'<div class="skinfo" data-iteminfo="'+it.id+'"'+(INVUI.info[it.id]?'':' style="display:none"')+'>'+(INVUI.info[it.id]?itemInfoHtml(it):'')+'</div>'
+    +'</div>';
+}
 function renderInv(){
   var c=active();
   if(!c){$("invBody").innerHTML='<div class="empty-note">No crawler selected. Pick one from the Roster.</div>';return}
-  var str=parseInt(c.enh.str||c.stats.str,10);
-  var lift=str?str*15:null;
-  var eq=c.equipped;
-  var accUsed=eq.accessories.filter(function(a){return a&&a.trim()}).length;
-
-  var h='<div class="sec"><h2>Inventory · '+esc(c.name||"Unnamed")+'</h2>'
-    +'<p class="note">Items in your inventory are weightless — there is no encumbrance. The only limit is what you can physically lift, and only equipped gear grants bonuses.</p>';
-
-  h+='<div class="grid g4">'
-    +'<div class="f"><span class="lab">Lift limit</span><div class="out'+(lift?"":" empty")+'">'
-      +(lift?lift+" lb":"—")+'</div><span class="hint">Strength × 15</span></div>'
-    +'<div class="f"><span class="lab">Gold</span><input type="number" data-n="gold" value="'+esc(c.gold)+'">'
-      +'<span class="hint">one inventory slot, any amount</span></div>'
-    +'<div class="f"><span class="lab">Misc. Junk</span><input type="number" data-n="junk" value="'+esc(c.junk)+'">'
-      +'<span class="hint">spend 1 to produce a mundane item</span></div>'
-    +'<div class="f"><span class="lab">Accessories used</span><div class="out sm">'+accUsed+' / 10</div>'
-      +'<span class="hint">plus one belt and one cape</span></div>'
-    +'</div>';
-
-  /* ---- gear slots ---- */
-  h+='<div class="bar" style="margin-top:22px"><h3>Equipped</h3><span class="sp"></span>'
-    +'<span class="hint">one item per slot — everything else sits in inventory doing nothing</span></div>';
-  h+='<div class="grid g3">';
-  SLOTS.forEach(function(sl){
-    var hl=sl[0]==="head"?hatLine(c,eq.head):"";
-    h+='<div class="f"><span class="lab">'+sl[1]+'</span>'
-      +'<input type="text" list="itemnames" data-e="'+sl[0]+'" value="'+esc(eq[sl[0]])+'" placeholder="empty">'
-      +'<span class="hint"'+(sl[0]==="head"?' id="headHat"':'')+'>'+esc(hl||sl[2])+'</span></div>';
+  ensureInv(c);
+  if(rollCode()&&fbDb&&fbUser){try{listenGifts()}catch(e){}}
+  var str=parseInt(c.enh.str||c.stats.str,10), lift=str?str*15:null, eq=c.equipped;
+  var inv=c.inventory.filter(function(it){return it.where==="inv"}), equipped=c.inventory.filter(function(it){return it.where==="equip"}),
+      hot=c.inventory.filter(function(it){return it.where==="hot"}), space=c.inventory.filter(function(it){return it.where==="space"});
+  var hotUsed=0;for(var i=0;i<10;i++)if(c.hotlist[i])hotUsed++;
+  var h='<div class="sec"><h2>Inventory \u00b7 '+esc(c.name||"Unnamed")+'</h2>'
+    +'<p class="note">Your Inventory is weightless: the only limit is what you can lift to store something. Only equipped gear grants bonuses, and in a fight, moving something from your Inventory to your hand or Hotlist takes a Retrieve Action.</p>'
+    +'<div class="invsum">Hotlist <b>'+hotUsed+' / 10</b> \u00b7 <b>'+inv.reduce(function(s,it){return s+(parseInt(it.qty,10)||1)},0)+'</b> in Inventory \u00b7 <b>'+equipped.length+'</b> equipped \u00b7 <b>'+space.length+'</b> in Personal Space</div>';
+  h+='<div class="grid g3" style="margin-top:10px">'
+    +'<div class="f"><span class="lab">Lift limit</span><div class="out'+(lift?"":" empty")+'">'+(lift?lift+" lb":"\u2014")+'</div><span class="hint">Strength \u00d7 15</span></div>'
+    +'<div class="f"><span class="lab">Gold</span><input type="number" data-n="gold" value="'+esc(c.gold)+'"><span class="hint">one inventory slot, any amount</span></div>'
+    +'<div class="f"><span class="lab">Misc. Junk</span><input type="number" data-n="junk" value="'+esc(c.junk)+'"><span class="hint">spend 1 to produce a mundane item</span></div></div>';
+  /* incoming gifts */
+  var gifts=(INV_GIFTS||[]).filter(function(g){return g.to===(fbUser&&fbUser.uid)});
+  if(gifts.length)h+='<div class="giftbox">'+gifts.map(function(g){var gi={};try{gi=JSON.parse(g.item)}catch(e){}
+    return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0"><span style="flex:1"><b>'+esc(g.fromName||"A crawler")+'</b> is giving you <b>'+esc(itemLabel(gi))+'</b>.</span>'
+      +'<button class="btn sm pri" data-gift="accept" data-gid="'+esc(g.id)+'">Accept</button><button class="btn sm" data-gift="decline" data-gid="'+esc(g.id)+'">Send it back</button></div>'}).join("")+'</div>';
+  /* equipped */
+  h+='<div class="bar" style="margin-top:20px"><h3>Equipped</h3><span class="sp"></span><span class="hint">one item per slot</span></div><div class="slotgrid">';
+  EQUIP_KEYS.forEach(function(k){
+    var it=itemAt(c,"equip",k[0]), blocked=k[0]==="hand2"&&eq.twoHanded;
+    var hl=k[0]==="head"&&it?hatLine(c,it.name):"";
+    h+='<div class="slot'+(it?" full":"")+'"><div class="lab">'+k[1]+'</div>';
+    if(it){
+      var applied=!!(c.grants&&c.grants["item_"+it.id]), pl=itemPlan(it);
+      h+='<div class="ihead"><b>'+esc(it.name)+'</b>'+rarityBadge(itemRarity(it))+'<span class="sp"></span>'
+        +'<button class="btn sm" data-act="info" data-id="'+it.id+'" style="min-width:26px">?</button>'
+        +'<button class="btn sm" data-act="unequip" data-id="'+it.id+'">Unequip</button></div>'
+        +(hl?'<div class="hint" id="headHat">'+esc(hl)+'</div>':'')
+        +((pl.fixed.length||pl.dr)?(applied?'<div class="hint">Bonuses on: '+esc(itemBonusText(pl))+'</div>':'<button class="btn sm" data-act="applybonus" data-id="'+it.id+'">Apply its bonuses ('+esc(itemBonusText(pl))+')</button>'):'')
+        +'<div class="skinfo" data-iteminfo="'+it.id+'"'+(INVUI.info[it.id]?'':' style="display:none"')+'>'+(INVUI.info[it.id]?itemInfoHtml(it):'')+'</div>';
+    }else if(blocked){h+='<div class="hint">Your two-handed weapon uses this hand.</div>'}
+    else{
+      var cands=inv.filter(function(x){return itemCat(x)!=="Potion"&&itemCat(x)!=="Scroll"});
+      h+=cands.length?'<select data-equipsel="'+k[0]+'"><option value="">Empty. Equip\u2026</option>'+cands.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join("")+'</select>':'<div class="hint">Empty</div>';
+    }
+    if(k[0]==="hand1")h+='<label class="hint" style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" data-e="twoHanded" style="width:auto"'+(eq.twoHanded?" checked":"")+'> Needs both hands</label>';
+    h+='</div>';
   });
-  h+='<div class="f"><span class="lab">Gloves</span>'
-    +'<input type="text" list="itemnames" data-e="gloves" value="'+esc(eq.gloves)+'" placeholder="empty">'
-    +'<span class="hint">worn alongside whatever you hold</span></div>';
   h+='</div>';
-
-  h+='<div class="grid g3" style="margin-top:12px">'
-    +'<div class="f"><span class="lab">Main hand</span>'
-      +'<input type="text" list="itemnames" data-e="hand1" value="'+esc(eq.hand1)+'" placeholder="empty"></div>'
-    +'<div class="f"><span class="lab">Off hand</span>'
-      +'<input type="text" list="itemnames" data-e="hand2" value="'+esc(eq.hand2)+'" placeholder="empty"'
-      +(eq.twoHanded?' disabled style="opacity:.45"':'')+'>'
-      +'<span class="hint">a shield uses this slot</span></div>'
-    +'<div class="f"><span class="lab">Two-handed</span>'
-      +'<label style="display:flex;gap:8px;align-items:center;font-size:13px;padding-top:6px">'
-      +'<input type="checkbox" data-e="twoHanded" style="width:auto"'+(eq.twoHanded?" checked":"")+'>'
-      +' Main hand needs both hands</label>'
-      +'<span class="hint">'+(eq.twoHanded?"Off hand is unavailable.":"Off hand is free.")+'</span></div>'
-    +'</div>';
-
-  h+='<div class="grid g2" style="margin-top:12px">'
-    +'<div class="f"><span class="lab">Belt</span><input type="text" list="itemnames" data-e="belt" value="'+esc(eq.belt)+'" placeholder="max one"></div>'
-    +'<div class="f"><span class="lab">Cape</span><input type="text" list="itemnames" data-e="cape" value="'+esc(eq.cape)+'" placeholder="max one"></div>'
-    +'</div>';
-
-  h+='<div class="bar" style="margin-top:16px"><h3>Accessories</h3><span class="sp"></span>'
-    +'<span class="hint">rings, amulets, brooches, tattoos, patches, piercings — up to 10</span></div>'
-    +'<div class="grid g2">';
-  for(var a=0;a<10;a++){
-    h+='<div class="f" style="flex-direction:row;align-items:center;gap:8px">'
-      +'<span class="lab" style="width:22px">'+(a+1)+'</span>'
-      +'<input type="text" list="itemnames" data-acc="'+a+'" value="'+esc(eq.accessories[a]||"")+'" placeholder="empty"></div>';
-  }
-  h+='</div>';
-
-  /* ---- hotlist ---- */
-  h+='<div class="bar" style="margin-top:22px"><h3>Hotlist</h3><span class="sp"></span>'
-    +'<span class="hint">10 slots · one action to use · weapon swaps are free during an attack</span></div>'
-    +'<div class="grid g2">';
-  for(var i=0;i<10;i++){
-    h+='<div class="f" style="flex-direction:row;align-items:center;gap:8px">'
-      +'<span class="lab" style="width:22px">'+(i+1)+'</span>'
-      +'<input type="text" data-hot="'+i+'" value="'+esc(c.hotlist[i]||"")+'" placeholder="empty slot"></div>';
-  }
-  h+='</div>'
-    +'<p class="hint" style="margin-top:6px">A potion in the hotlist takes effect without being physically drunk. '
-    +'No more than one potion every other round in combat, or you take Potion Sickness.</p>';
-
-  /* ---- carried ---- */
-  h+='<div class="bar" style="margin-top:22px"><h3>Carried</h3><span class="sp"></span>'
-    +'<select id="invPick" style="max-width:200px"><option value="">Add from library…</option>'
-    +S.library.items.map(function(it){return '<option value="'+it.id+'">'+esc(it.name)+'</option>'}).join("")
-    +'</select>'
-    +'<button class="btn sm pri" id="invAdd">Add row</button></div>';
-  if(!c.inventory.length){h+='<div class="empty-note">Nothing carried yet.</div>'}
-  else{
-    h+='<div class="tbl">'
-      +'<div class="tr th" style="grid-template-columns:1fr 56px 74px 96px 1fr 28px">'
-      +'<span>Item</span><span>Qty</span><span>Weight</span><span>Slot</span><span>Notes</span><span></span></div>';
-    c.inventory.forEach(function(it,ix){
-      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 56px 74px 96px 1fr 28px">'
-        +'<input type="text" list="itemnames" data-i="name" value="'+esc(it.name)+'">'
-        +'<input type="number" data-i="qty" value="'+esc(it.qty)+'">'
-        +'<input type="number" data-i="weight" value="'+esc(it.weight)+'">'
-        +'<input type="text" data-i="slot" value="'+esc(it.slot)+'">'
-        +'<input type="text" data-i="notes" value="'+esc(it.notes)+'">'
-        +'<button class="x" data-i="del">×</button></div>';
-    });
+  /* hotlist */
+  h+='<div class="bar" style="margin-top:20px"><h3>Hotlist</h3><span class="sp"></span><span class="hint">10 slots \u00b7 one Action to use \u00b7 weapon swaps are free during an attack</span></div><div class="grid g2">';
+  for(var s=0;s<10;s++){
+    var hi=itemAt(c,"hot",s);
+    h+='<div class="hotslot"><span class="lab" style="width:22px">'+(s+1)+'</span>';
+    if(hi)h+='<b style="flex:1">'+esc(itemLabel(hi))+'</b>'+(isConsumable(hi)?'<button class="btn sm pri" data-act="use" data-id="'+hi.id+'">Use</button>':'')
+      +'<button class="btn sm" data-act="stow" data-id="'+hi.id+'">Stow</button>';
+    else h+='<input type="text" data-hotfree="'+s+'" value="'+esc(c.hotFree[s]||"")+'" placeholder="Empty: a spell, or move an item here" style="flex:1">';
     h+='</div>';
   }
+  h+='</div><p class="hint" style="margin-top:6px">A potion in the Hotlist takes effect without being physically drunk. No more than one potion every other round in combat, or you take Potion Sickness.</p>';
+  /* the inventory */
+  var cats=INV_CATS.filter(function(k){return inv.some(function(it){return itemCat(it)===k})});
+  var shown=inv.filter(function(it){return (INVUI.cat==="all"||itemCat(it)===INVUI.cat)&&(!INVUI.q||(it.name+" "+(it.notes||"")).toLowerCase().indexOf(INVUI.q.toLowerCase())>=0)});
+  var rk=function(it){var r=RARITY.indexOf(itemRarity(it));return r<0?-1:r};
+  shown.sort(INVUI.sort==="rarity"?function(a,b){return rk(b)-rk(a)||a.name.localeCompare(b.name)}:INVUI.sort==="recent"?function(a,b){return (b.added||0)-(a.added||0)}:function(a,b){return (a.name||"").localeCompare(b.name||"")});
+  h+='<div class="bar" style="margin-top:20px"><h3>Inventory</h3><span class="sp"></span>'
+    +'<select id="invPick" style="max-width:200px"><option value="">Add from library\u2026</option>'+S.library.items.map(function(it){return '<option value="'+it.id+'">'+esc(it.name)+'</option>'}).join("")+'</select>'
+    +'<button class="btn sm pri" id="invAdd">New item</button></div>'
+    +'<div class="invtools"><input type="search" id="invQ" placeholder="Search your items" value="'+esc(INVUI.q)+'">'
+    +'<select id="invSort"><option value="name"'+(INVUI.sort==="name"?" selected":"")+'>A\u2013Z</option><option value="rarity"'+(INVUI.sort==="rarity"?" selected":"")+'>Rarity</option><option value="recent"'+(INVUI.sort==="recent"?" selected":"")+'>Newest</option></select></div>'
+    +'<div class="pill invcats"><button data-cat="all" aria-pressed="'+(INVUI.cat==="all")+'">All</button>'+cats.map(function(k){return '<button data-cat="'+esc(k)+'" aria-pressed="'+(INVUI.cat===k)+'">'+esc(k)+'</button>'}).join("")+'</div>';
+  h+=shown.length?'<div class="ilist">'+shown.map(function(it){return itemCard(c,it,lift)}).join("")+'</div>':'<div class="empty-note">'+(inv.length?"Nothing matches.":"Nothing in your Inventory yet.")+'</div>';
   h+='<p class="hint" id="liftWarn" style="margin-top:6px"></p>';
-
-  /* ---- loot boxes ---- */
-  h+='<div class="bar" style="margin-top:22px"><h3>Unopened loot boxes</h3><span class="sp"></span>'
-    +'<button class="btn sm pri" id="boxAdd">Add box</button></div>';
-  if(!c.boxes.length){h+='<div class="empty-note">No boxes waiting.</div>'}
+  /* personal space */
+  h+='<div class="bar" style="margin-top:20px"><h3>Personal Space</h3><span class="sp"></span><span class="hint">furniture, crafting tables and storage, reached from saferooms</span></div>';
+  h+=space.length?'<div class="ilist">'+space.map(function(it){return itemCard(c,it,lift)}).join("")+'</div>':'<div class="empty-note">Nothing stored here.</div>';
+  /* loot boxes */
+  h+='<div class="bar" style="margin-top:20px"><h3>Unopened loot boxes</h3><span class="sp"></span><button class="btn sm pri" id="boxAdd">Add box</button></div>';
+  if(!c.boxes.length)h+='<div class="empty-note">No boxes waiting.</div>';
   else{
-    h+='<div class="tbl">'
-      +'<div class="tr th" style="grid-template-columns:1fr 130px 1fr 28px">'
-      +'<span>Box type</span><span>Rarity</span><span>Earned for</span><span></span></div>';
+    h+='<div class="tbl"><div class="tr th" style="grid-template-columns:1fr 130px 1fr 70px 28px"><span>Box type</span><span>Rarity</span><span>Earned for</span><span></span><span></span></div>';
     c.boxes.forEach(function(b,ix){
-      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 130px 1fr 28px">'
-        +'<input type="text" data-b="name" value="'+esc(b.name)+'" placeholder="Adventurer, Boss, Quest…">'
-        +'<select data-b="rarity"><option value="">—</option>'
-        +RARITY.map(function(r){return '<option'+(b.rarity===r?" selected":"")+'>'+r+'</option>'}).join("")+'</select>'
+      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 130px 1fr 70px 28px">'
+        +'<input type="text" data-b="name" value="'+esc(b.name)+'" placeholder="Adventurer, Boss, Quest\u2026">'
+        +'<select data-b="rarity"><option value="">\u2014</option>'+RARITY.map(function(r){return '<option'+(b.rarity===r?" selected":"")+'>'+r+'</option>'}).join("")+'</select>'
         +'<input type="text" data-b="why" value="'+esc(b.why)+'" placeholder="achievement or boss">'
-        +'<button class="x" data-b="del">×</button></div>';
+        +'<button class="btn sm pri" data-boxopen="'+ix+'">Open</button><button class="x" data-b="del">\u00d7</button></div>';
     });
     h+='</div>';
   }
-
-  /* ---- what you walked in with ---- */
-  h+='<div class="bar" style="margin-top:22px"><h3>What you entered with</h3></div><div class="grid g4">'
+  h+='<div class="bar" style="margin-top:20px"><h3>What you entered with</h3></div><div class="grid g4">'
     +'<div class="f"><span class="lab">Clothing</span><input type="text" data-g="clothing" value="'+esc(c.gear.clothing)+'"></div>'
     +'<div class="f"><span class="lab">In hand</span><input type="text" data-g="hand" value="'+esc(c.gear.hand)+'"></div>'
     +'<div class="f"><span class="lab">Useful item</span><input type="text" data-g="item" value="'+esc(c.gear.item)+'"></div>'
-    +'<div class="f"><span class="lab">Weird stuff</span><input type="text" data-g="weird" value="'+esc(c.gear.weird)+'"></div>'
-    +'</div>';
-
-  h+='<datalist id="itemnames">'
-    +S.library.items.map(function(it){return '<option value="'+esc(it.name)+'">'}).join("")+'</datalist>';
-  h+='</div>';
-
+    +'<div class="f"><span class="lab">Weird stuff</span><input type="text" data-g="weird" value="'+esc(c.gear.weird)+'"></div></div>';
+  h+='<datalist id="itemnames">'+S.library.items.map(function(it){return '<option value="'+esc(it.name)+'">'}).join("")+'</datalist></div>';
   $("invBody").innerHTML=h;
-  refreshLift();
 }
-
-/* the lift warning has to track typing, not wait for the next render */
-function refreshLift(){
-  var c=active(); if(!c)return;
-  var str=parseInt(c.enh.str||c.stats.str,10);
-  var lift=str?str*15:null;
-  var heavy=0;
-  Array.prototype.forEach.call(
-    document.querySelectorAll('#invBody [data-i="weight"]'),function(el){
-      var v=parseFloat(el.value);
-      var over=!!(lift&&!isNaN(v)&&v>lift);
-      el.style.borderColor=over?"var(--rust)":"";
-      el.style.color=over?"var(--rust)":"";
-      el.title=over?"Heavier than you can lift":"";
-      if(over)heavy++;
-    });
-  var wEl=$("liftWarn"); if(!wEl)return;
-  wEl.textContent=heavy
-    ? heavy+" item"+(heavy>1?"s":"")+" heavier than your "+lift
-      +" lb lift limit — you cannot pick "+(heavy>1?"those":"that")+" up unaided."
-    : "";
-  wEl.style.color=heavy?"var(--rust)":"";
-}
-
-/* bound once */
+function invFind(c,id){return c.inventory.find(function(x){return x.id===id})}
 $("invBody").addEventListener("input",function(e){
-  var c=active(); if(!c)return;
-  var t=e.target;
-  if(t.dataset.hot!=null){c.hotlist[parseInt(t.dataset.hot,10)]=t.value;save();return}
+  var c=active(); if(!c)return; var t=e.target;
+  if(t.id==="invQ"){INVUI.q=t.value;var pos=t.selectionStart;renderInv();var q=$("invQ");if(q){q.focus();try{q.setSelectionRange(pos,pos)}catch(x){}}return}
+  if(t.dataset.hotfree!=null){c.hotFree[+t.dataset.hotfree]=t.value;syncInv(c);save();return}
   if(t.dataset.g){c.gear[t.dataset.g]=t.value;save();return}
   if(t.dataset.n){c[t.dataset.n]=t.value;save();return}
-  if(t.dataset.acc!=null){
-    c.equipped.accessories[parseInt(t.dataset.acc,10)]=t.value; save();
-    var used=c.equipped.accessories.filter(function(a){return a&&a.trim()}).length;
-    var box=document.querySelectorAll("#invBody .out.sm");
-    if(box.length)box[box.length-1].textContent=used+" / 10";
+  if(t.dataset.i&&t.dataset.id){
+    var it=invFind(c,t.dataset.id); if(!it)return;
+    it[t.dataset.i]=t.value;
+    if(t.dataset.i==="name"){var l=gLib("items",t.value);it.libId=l?l.id:null}
+    syncInv(c);save();
+    if(t.dataset.i==="weight"){
+      var str=parseInt(c.enh.str||c.stats.str,10),lift=str?str*15:null,w=parseFloat(t.value),el=$("liftWarn");
+      if(el)el.textContent=(lift&&!isNaN(w)&&w>lift)?(it.name||"That item")+" is heavier than your "+lift+" lb lift limit, so you couldn\u2019t pick it up to store it.":"";
+    }
     return;
   }
-  if(t.dataset.e){
-    c.equipped[t.dataset.e]=t.value;
-    if(t.dataset.e==="head"){var hh=$("headHat"); if(hh)hh.textContent=hatLine(c,t.value)||"helmets, bandanas, hats";}
-    save();return;
-  }
-  var row=t.closest(".tr"); if(!row)return;
-  var ix=parseInt(row.dataset.ix,10);
-  if(t.dataset.i){
-    c.inventory[ix][t.dataset.i]=t.value; save();
-    if(t.dataset.i==="weight")refreshLift();
-    return;
-  }
-  if(t.dataset.b){c.boxes[ix][t.dataset.b]=t.value;save();return}
+  var row=t.closest(".tr"); if(row&&t.dataset.b){c.boxes[parseInt(row.dataset.ix,10)][t.dataset.b]=t.value;save()}
 });
 $("invBody").addEventListener("change",function(e){
-  var c=active(); if(!c)return;
-  var t=e.target;
+  var c=active(); if(!c)return; var t=e.target;
+  if(t.id==="invSort"){INVUI.sort=t.value;renderInv();return}
   if(t.dataset.e==="twoHanded"){
     c.equipped.twoHanded=t.checked;
-    if(t.checked)c.equipped.hand2="";
-    save();renderInv();return;
+    if(t.checked){var off=itemAt(c,"equip","hand2");if(off)unequipItem(c,off,true)}
+    syncInv(c);save();renderInv();return;
   }
+  if(t.dataset.equipsel&&t.value){var it=invFind(c,t.value);if(it)equipItem(c,it,t.dataset.equipsel);return}
+  if(t.dataset.equipto&&t.value){var it2=invFind(c,t.dataset.equipto);if(it2)equipItem(c,it2,t.value);return}
+  if(t.dataset.i==="category"){var ic=invFind(c,t.dataset.id);if(ic){ic.category=t.value;save();renderInv()}return}
   if(t.dataset.b){var r=t.closest(".tr");c.boxes[parseInt(r.dataset.ix,10)][t.dataset.b]=t.value;save();return}
   if(t.id==="invPick"){
-    var it=S.library.items.find(function(l){return l.id===t.value});
-    if(!it)return;
-    c.inventory.push({id:uid(),name:it.name,qty:1,weight:it.weight||"",slot:it.slot||"",notes:it.notes||""});
-    save();renderInv();
+    var l=S.library.items.find(function(x){return x.id===t.value}); if(!l)return;
+    var same=c.inventory.find(function(x){return x.where==="inv"&&x.libId===l.id});
+    if(same)same.qty=(parseInt(same.qty,10)||1)+1; else c.inventory.push(itemFromLib(l,1));
+    syncInv(c);save();renderInv();
   }
 });
 $("invBody").addEventListener("click",function(e){
-  var c=active(); if(!c)return;
-  var t=e.target;
-  if(t.id==="invAdd"){c.inventory.push({id:uid(),name:"",qty:1,weight:"",slot:"",notes:""});save();renderInv();return}
+  var c=active(); if(!c)return; var t=e.target.closest("button,[data-cat]"); if(!t)return;
+  if(t.id==="invAdd"){var ni=newItem({});c.inventory.push(ni);INVUI.edit=ni.id;save();renderInv();return}
   if(t.id==="boxAdd"){c.boxes.push({id:uid(),name:"",rarity:"",why:""});save();renderInv();return}
-  var row=t.closest(".tr"); if(!row)return;
-  var ix=parseInt(row.dataset.ix,10);
-  if(t.dataset.i==="del"){c.inventory.splice(ix,1);save();renderInv();return}
-  if(t.dataset.b==="del"){c.boxes.splice(ix,1);save();renderInv()}
+  if(t.dataset.cat){INVUI.cat=t.dataset.cat;renderInv();return}
+  if(t.dataset.boxopen!=null){openBox(c,+t.dataset.boxopen);return}
+  if(t.dataset.gift){giftAnswer(c,t.dataset.gid,t.dataset.gift==="accept");return}
+  if(t.dataset.b==="del"){var row=t.closest(".tr");c.boxes.splice(parseInt(row.dataset.ix,10),1);save();renderInv();return}
+  var act=t.dataset.act, it=t.dataset.id&&invFind(c,t.dataset.id); if(!act||!it)return;
+  if(act==="info"){INVUI.info[it.id]=!INVUI.info[it.id];renderInv();return}
+  if(act==="edit"){INVUI.edit=INVUI.edit===it.id?null:it.id;renderInv();return}
+  if(act==="minus"){var q=(parseInt(it.qty,10)||1)-1;if(q<=0){ask("Remove "+(it.name||"this item")+"?","Remove",function(){grantRevert(c,"item_"+it.id);c.inventory.splice(c.inventory.indexOf(it),1);syncInv(c);save();renderInv();renderSheet()});return}it.qty=q;syncInv(c);save();renderInv();return}
+  if(act==="plus"){it.qty=(parseInt(it.qty,10)||1)+1;syncInv(c);save();renderInv();return}
+  if(act==="del"){ask("Remove "+(it.name||"this item")+"?","Remove",function(){grantRevert(c,"item_"+it.id);c.inventory.splice(c.inventory.indexOf(it),1);syncInv(c);save();renderInv();renderSheet()});return}
+  if(act==="unequip"){unequipItem(c,it);return}
+  if(act==="applybonus"){var p=itemPlan(it);grantApply(c,p,[],[]);save();renderInv();renderSheet();toast("Applied "+it.name+": "+itemBonusText(p)+".","good");return}
+  if(act==="hot"){
+    var free=-1;for(var i=0;i<10;i++){if(!c.hotlist[i]){free=i;break}}
+    if(free<0){toast("Your Hotlist is full. Stow something first.","warn");return}
+    moveItem(c,it,"hot",free);
+    if(inFight())toast("Moving it to your Hotlist mid-fight takes a Retrieve Action.");
+    return;
+  }
+  if(act==="space"){moveItem(c,it,"space");toast(it.name+" is in your Personal Space. You can reach it from saferooms.");return}
+  if(act==="stow"){moveItem(c,it,"inv");return}
+  if(act==="use"){useItem(c,it);return}
+  if(act==="give"){giveItem(c,it);return}
 });
+
+/* ---- using consumables ---- */
+function recordUse(c,label,detail){
+  var r={label:label,total:"",nat:0,detail:detail||"",tier:"",mode:"use",who:c?(c.name||"Crawler"):"GM",at:Date.now()};
+  if(!S.rollLog)S.rollLog=[]; S.rollLog.unshift(r); if(S.rollLog.length>100)S.rollLog.length=100;
+  var code=rollCode();
+  if(code&&fbDb&&fbUser){try{var pr=rollsRef(code).add({owner:fbUser.uid,who:String(r.who).slice(0,120),label:String(label).slice(0,120),detail:String(detail||"").slice(0,300),total:0,nat:0,tier:"",mode:"use",at:fbNow()});if(pr&&pr.catch)pr.catch(function(){})}catch(e){}}
+  renderDice();
+}
+function spendOne(c,it){
+  var q=(parseInt(it.qty,10)||1)-1;
+  if(q<=0){grantRevert(c,"item_"+it.id);c.inventory.splice(c.inventory.indexOf(it),1)} else it.qty=q;
+  syncInv(c);
+}
+function useItem(c,it){
+  var name=it.name||"item", eff=itemEffect(it)||it.notes||"", isPotion=itemCat(it)==="Potion", out=[];
+  if(/earth hobby potion/i.test(name)){drinkHobby(c,c.inventory.indexOf(it));return}
+  if(skillPotionN(name)){potionOfSkill(c,it,skillPotionN(name));return}
+  if(inFight()&&it.where==="inv")out.push("using it straight from your Inventory takes a Retrieve Action first");
+  if(isPotion&&inFight()){
+    var rd=S.encounter.round||1;
+    if(c.lastPotionRound!=null&&rd-c.lastPotionRound<2)out.push("that\u2019s two potions within two rounds, so the rulebook gives you Potion Sickness (the Poison Debuff, for 15 seconds)");
+    c.lastPotionRound=rd;
+  }
+  var mx=parseInt(c.enh.int||c.stats.int,10)||0, did="";
+  var heal=eff.match(/Heals?\s+(\d+)\s+Health Bar/i);
+  if(heal){var before=c.hbLost||0;c.hbLost=Math.max(0,before-(+heal[1]));did="healed "+(before-c.hbLost)+" Health Bar slot"+(before-c.hbLost===1?"":"s")}
+  else if(/full(?:y)? restore|fully restore/i.test(eff)||/standard mana potion/i.test(name)||(/mana potion/i.test(name)&&!eff)){c.manaCur=mx;did="Mana fully restored ("+mx+")"}
+  else if(/remove the Blood Trail/i.test(eff)){var bi=(c.debuffs||[]).findIndex(function(d){return /blood trail/i.test(d.name)});
+    if(bi>=0){c.debuffs.splice(bi,1);did="Blood Trail removed"} else did="no Blood Trail to remove"}
+  else{
+    var dm=eff.match(/(\d+d\d+(?:\s*[+\-]\s*\d+)?)\s+([A-Za-z]+)\s+damage/i), rx=dm&&rollExpr(dm[1]);
+    if(rx){recordRoll(c,{label:name+" damage",total:rx.total,nat:0,detail:rx.text+" "+dm[2]+(eff.match(/Blast[^.;,]*/i)?" \u00b7 "+eff.match(/Blast[^.;,]*/i)[0]:""),tier:"",mode:"normal"});did="rolled its damage"}
+  }
+  spendOne(c,it); save(); renderInv(); renderSheet();
+  recordUse(c,"Used "+name,did||eff.slice(0,140));
+  toast("Used "+name+(did?": "+did:eff?". Its effect: "+eff.slice(0,120):"")+"."+(out.length?" Note: "+out.join("; ")+".":""),did?"good":"");
+}
+/* Skill potions: the rulebook says "Choose a Skill and gain N Ranks in it",
+   any skill, known or new. Works like the Earth Hobby Potion's drink screen. */
+function skillPotionN(name){var m=String(name||"").match(/Potion of \+(\d+) Skill|\+(\d+) Skill(?: Rank)? Potion/i);return m?+(m[1]||m[2]):0}
+function potionOfSkill(c,it,n){
+  var mine=c.skills.filter(function(s){return s.name}).slice().sort(function(a,b){return a.name.localeCompare(b.name)});
+  var mineN={}; mine.forEach(function(s){mineN[gNorm(s.name)]=1});
+  var lib=S.library.skills.filter(function(s){return s.name&&!mineN[gNorm(s.name)]&&!/earth hobby/i.test(s.type||"")});
+  var kinds={}; lib.forEach(function(s){var k=s.type||"Other";(kinds[k]=kinds[k]||[]).push(s)});
+  var picked="", note="";
+  function rankOf(nm){var ex=gFind(c.skills,nm);return ex?(parseInt(ex.rank,10)||0):0}
+  function body(){
+    var opt=function(nm,label){return '<option value="'+esc(nm)+'"'+(picked===nm?" selected":"")+'>'+esc(label)+'</option>'};
+    return '<h2 style="font-size:20px;margin-bottom:6px">Drink the '+esc(it.name)+'?</h2>'
+      +'<p class="hint" style="margin:0 0 10px">Choose a skill and gain '+n+' Rank'+(n===1?"":"s")+' in it, permanently. It can be one you already have, or a new one.</p>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn" id="posRoll">Roll a random skill</button>'
+      +'<span class="hint" style="align-self:center">optional: the rulebook has you choose</span></div>'
+      +(note?'<div style="margin-bottom:6px">'+note+'</div>':'')
+      +'<label class="f"><span class="lab">Skill</span><select id="posPick"><option value="">Choose a skill\u2026</option>'
+      +(mine.length?'<optgroup label="Your skills">'+mine.map(function(s){var r=parseInt(s.rank,10)||0;return opt(s.name,s.name+": Rank "+r+" \u2192 "+(r+n))}).join("")+'</optgroup>':'')
+      +Object.keys(kinds).sort().map(function(k){return '<optgroup label="Learn a new one: '+esc(k)+'">'+kinds[k].sort(function(a,b){return a.name.localeCompare(b.name)}).map(function(s){return opt(s.name,s.name+": new, Rank "+n)}).join("")+'</optgroup>'}).join("")
+      +'</select></label>'
+      +'<label class="f" style="margin-top:6px"><span class="lab">Or type a skill</span><input type="text" id="posName" placeholder="Any skill your GM okays"></label>'
+      +'<div id="posDesc" class="hint" style="margin-top:6px"></div>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="posNo">Not now</button><button class="btn pri" id="posYes">Drink it</button></div>';
+  }
+  function describe(){
+    var el=$("posDesc"), nm=($("posName").value||"").trim()||$("posPick").value; if(!el)return;
+    if(!nm){el.textContent="";return}
+    var l=gLib("skills",nm), to=rankOf(nm)+n;
+    el.textContent=(l&&l.description?l.description.slice(0,220)+(l.description.length>220?"\u2026 ":" "):"")
+      +(to>15?"Heads up: that takes it to Rank "+to+", past the usual cap of 15. Check with your GM.":"");
+  }
+  function wire(){
+    $("posNo").addEventListener("click",closeModal);
+    $("posPick").addEventListener("change",function(){picked=$("posPick").value;describe()});
+    $("posName").addEventListener("input",describe);
+    $("posRoll").addEventListener("click",function(){
+      var pool=mine.map(function(s){return s.name}).concat(lib.map(function(s){return s.name}));
+      if(!pool.length){toast("Your Library has no skills yet. Import a book, or type one.","warn");return}
+      var k=rnd(pool.length); picked=pool[k-1]; note="";
+      recordRoll(c,{label:it.name+", random skill",total:k,nat:0,detail:"d"+pool.length+" ["+k+"] \u2192 "+picked,tier:"",mode:"normal"});
+      openModal(body()); wire(); describe();
+    });
+    $("posYes").addEventListener("click",function(){
+      var nm=($("posName").value||"").trim()||$("posPick").value||"";
+      if(!nm){toast("Choose or roll a skill first.","warn");return}
+      var ex=gFind(c.skills,nm), now;
+      if(ex){ex.rank=(parseInt(ex.rank,10)||0)+n;now=ex.rank}
+      else{var l=gLib("skills",nm), sk=newSkill(l?l.name:nm,n);sk.notes="from a "+it.name;c.skills.push(sk);now=n;nm=sk.name}
+      spendOne(c,it); save(); closeModal(); renderInv(); renderSheet();
+      recordUse(c,"Used "+it.name,nm+" +"+n+(ex?" (now Rank "+now+")":" (new, Rank "+now+")"));
+      toast(nm+" is now Rank "+now+(ex?"":", a new skill")+"."+(now>15?" That\u2019s past the usual cap of 15, so check with your GM.":""),"good");
+    });
+  }
+  openModal(body()); wire();
+}
+/* ---- opening a loot box ---- */
+function openBox(c,ix){
+  var box=c.boxes[ix]; if(!box)return;
+  var lines=[{name:/earth/i.test((box.name||"")+" "+(box.why||""))?"Earth Hobby Potion":"",qty:1}], rolled="";
+  function body(){
+    return '<h2 style="font-size:20px;margin-bottom:6px">Open the '+esc([box.rarity,box.name||"loot box"].filter(Boolean).join(" "))+'</h2>'
+      +'<p class="hint" style="margin:0 0 10px">Record what came out. Everything goes into your Inventory. If your GM rolls on a table, the dice are below.</p>'
+      +lines.map(function(l,i){return '<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" list="itemnames" data-bl="'+i+'" value="'+esc(l.name)+'" placeholder="Item name, or pick from your Library" style="flex:1">'
+        +'<input type="number" data-bq="'+i+'" value="'+esc(l.qty)+'" min="1" style="width:64px"></div>'}).join("")
+      +'<button class="btn sm" id="boxMore">Add another item</button>'
+      +'<div style="display:flex;gap:6px;align-items:center;margin-top:10px"><span class="hint">Roll</span><input type="text" id="boxDie" value="1d20" style="width:80px"><button class="btn sm" id="boxRoll">Roll</button>'+(rolled?'<span>'+esc(rolled)+'</span>':'')+'</div>'
+      +'<datalist id="itemnames">'+S.library.items.map(function(it){return '<option value="'+esc(it.name)+'">'}).join("")+'</datalist>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="boxNo">Not yet</button><button class="btn pri" id="boxYes">Open it</button></div>';
+  }
+  function wire(){
+    $("boxNo").addEventListener("click",closeModal);
+    $("modalBox").addEventListener("input",function(e){var t=e.target;
+      if(t.dataset.bl!=null)lines[+t.dataset.bl].name=t.value; if(t.dataset.bq!=null)lines[+t.dataset.bq].qty=t.value});
+    $("boxMore").addEventListener("click",function(){lines.push({name:"",qty:1});openModal(body());wire()});
+    $("boxRoll").addEventListener("click",function(){var r=rollExpr($("boxDie").value);if(!r){toast("Try something like 1d20.","warn");return}
+      rolled=r.total+" ("+r.text+")"; recordRoll(c,{label:"Loot box table roll",total:r.total,nat:0,detail:r.text,tier:"",mode:"normal"}); openModal(body()); wire()});
+    $("boxYes").addEventListener("click",function(){
+      var got=lines.filter(function(l){return (l.name||"").trim()});
+      got.forEach(function(l){
+        var q=Math.max(1,parseInt(l.qty,10)||1), lib=gLib("items",l.name.trim());
+        var same=c.inventory.find(function(x){return x.where==="inv"&&gNorm(x.name)===gNorm(l.name)});
+        if(same)same.qty=(parseInt(same.qty,10)||1)+q; else c.inventory.push(lib?itemFromLib(lib,q):newItem({name:l.name.trim(),qty:q}));
+      });
+      var label=[box.rarity,box.name||"loot box"].filter(Boolean).join(" ");
+      c.boxes.splice(ix,1); syncInv(c); save(); closeModal(); renderInv();
+      recordUse(c,"Opened a "+label,got.length?got.map(function(l){return l.name.trim()+(parseInt(l.qty,10)>1?" \u00d7"+l.qty:"")}).join(", "):"nothing recorded");
+      toast("Opened the "+label+(got.length?": "+got.length+" item"+(got.length===1?"":"s")+" added to your Inventory":"")+".","good");
+    });
+  }
+  openModal(body()); wire();
+}
+/* ---- giving items within the party (Firebase) ---- */
+var INV_GIFTS=[], giftUnsub=null, giftCode="";
+function membersRef(code){return fbDb.collection("campaigns").doc(code).collection("members")}
+function giftsRef(code){return fbDb.collection("campaigns").doc(code).collection("gifts")}
+function registerMember(){
+  var code=rollCode(); if(!code||!fbDb||!fbUser)return;
+  if(typeof (fbDb.collection("campaigns").doc(code).collection("members")||{}).doc!=="function")return;
+  var names=S.characters.map(function(x){return String(x.name||"Crawler").slice(0,60)}).slice(0,10);
+  try{var pr=membersRef(code).doc(fbUser.uid).set({uid:fbUser.uid,names:names,gm:!!(cloud.gmCode&&cloud.gmCode===code),at:fbNow()});if(pr&&pr.catch)pr.catch(function(){})}catch(e){}
+}
+function listenGifts(){
+  var code=rollCode(); if(!code||!fbDb||!fbUser)return;
+  if(giftUnsub&&giftCode===code)return;
+  if(giftUnsub){try{giftUnsub()}catch(e){}}
+  /* mark it started before subscribing: the first answer can arrive at once
+     and redraw the Inventory, which would otherwise ask to subscribe again */
+  giftCode=code; INV_GIFTS=[]; giftUnsub=function(){};
+  registerMember();
+  var unsub=null;
+  try{unsub=giftsRef(code).where("to","==",fbUser.uid).onSnapshot(function(qs){
+    INV_GIFTS=[]; qs.forEach(function(d){var x=d.data();x.id=d.id;INV_GIFTS.push(x)});
+    if(INV_GIFTS.length)toast("You have "+INV_GIFTS.length+" item"+(INV_GIFTS.length===1?"":"s")+" waiting in your Inventory tab.");
+    if($("v-inventory")&&$("v-inventory").classList.contains("on"))renderInv();
+  },function(){})}catch(e){giftUnsub=null;giftCode="";return}
+  if(typeof unsub==="function")giftUnsub=unsub;
+}
+function giveItem(c,it){
+  if(noTransfer(it)){toast(it.name+" can\u2019t be given away.","warn");return}
+  var code=rollCode(); if(!code||!fbDb||!fbUser){toast("Join your table\u2019s campaign in the Party tab to give items.","warn");return}
+  registerMember();
+  membersRef(code).get().then(function(qs){
+    var mem=[]; qs.forEach(function(d){var x=d.data();if(x.uid&&x.uid!==fbUser.uid)mem.push(x)});
+    if(!mem.length){toast("No one else has joined the campaign yet.","warn");return}
+    var q=parseInt(it.qty,10)||1;
+    openModal('<h2 style="font-size:20px;margin-bottom:6px">Give '+esc(it.name)+'</h2>'
+      +'<label class="f"><span class="lab">To</span><select id="gTo">'+mem.map(function(m){return '<option value="'+esc(m.uid)+'">'+esc((m.names||[]).join(", ")||"A crawler")+(m.gm?" (GM)":"")+'</option>'}).join("")+'</select></label>'
+      +(q>1?'<label class="f" style="margin-top:6px"><span class="lab">How many</span><input type="number" id="gQty" value="1" min="1" max="'+q+'"></label>':'')
+      +'<p class="hint">They accept it from their Inventory tab. If they send it back, it returns to you.</p>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="gNo">Cancel</button><button class="btn pri" id="gYes">Give it</button></div>');
+    $("gNo").addEventListener("click",closeModal);
+    $("gYes").addEventListener("click",function(){
+      var n=Math.min(q,Math.max(1,parseInt(($("gQty")||{}).value,10)||1)), to=$("gTo").value, m=mem.find(function(x){return x.uid===to});
+      var copy=Object.assign({},it,{qty:n,where:"inv",at:null}); delete copy.id;
+      var pr=giftsRef(code).add({from:fbUser.uid,fromName:String(c.name||"A crawler").slice(0,60),to:to,toName:String((m&&m.names||[]).join(", ")).slice(0,120),item:JSON.stringify(copy).slice(0,20000),at:fbNow()});
+      if(it.where==="equip")grantRevert(c,"item_"+it.id);
+      if(q>n)it.qty=q-n; else c.inventory.splice(c.inventory.indexOf(it),1);
+      syncInv(c); save(); closeModal(); renderInv(); renderSheet();
+      recordUse(c,"Gave "+copy.name+(n>1?" \u00d7"+n:""),"to "+((m&&m.names||[]).join(", ")||"a crawler"));
+      toast("Sent "+copy.name+" to "+((m&&m.names||[])[0]||"them")+".","good");
+      if(pr&&pr.catch)pr.catch(function(){toast("Couldn\u2019t send it. Check your connection.","warn")});
+    });
+  }).catch(function(){toast("Couldn\u2019t reach your table\u2019s campaign.","warn")});
+}
+function giftAnswer(c,gid,accept){
+  var g=INV_GIFTS.find(function(x){return x.id===gid}); if(!g)return;
+  var code=rollCode(); if(!code||!fbDb)return;
+  var item={}; try{item=JSON.parse(g.item)}catch(e){}
+  if(accept){
+    var same=c.inventory.find(function(x){return x.where==="inv"&&gNorm(x.name)===gNorm(item.name||"")});
+    if(same)same.qty=(parseInt(same.qty,10)||1)+(parseInt(item.qty,10)||1); else c.inventory.push(newItem(Object.assign({},item,{where:"inv",at:null})));
+    syncInv(c); save();
+    recordUse(c,"Received "+(item.name||"an item"),"from "+(g.fromName||"a crawler"));
+    toast("Added "+itemLabel(item)+" to "+(c.name||"your crawler")+"\u2019s Inventory.","good");
+  }else{
+    giftsRef(code).add({from:fbUser.uid,fromName:String(c.name||"A crawler").slice(0,60),to:g.from,toName:String(g.fromName||"").slice(0,120),item:g.item,at:fbNow()});
+    toast("Sent it back to "+(g.fromName||"them")+".");
+  }
+  giftsRef(code).doc(gid).delete();
+  INV_GIFTS=INV_GIFTS.filter(function(x){return x.id!==gid}); renderInv();
+}
 
 function renderEnc(){
   var E=S.encounter;
