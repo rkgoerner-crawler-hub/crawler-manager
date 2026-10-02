@@ -198,6 +198,8 @@ select{cursor:pointer}
 .hotslot{display:flex;gap:6px;align-items:center;min-height:34px}
 .invtools{display:flex;gap:6px;margin:6px 0}.invtools input{flex:1}.invcats{margin-bottom:8px;flex-wrap:wrap}
 .giftbox{margin-top:10px;padding:8px 12px;border:1px solid var(--teal);border-radius:8px}
+.lootroll{margin-top:10px;padding:8px 10px;border:1px solid var(--hair);border-radius:8px;background:var(--panel2)}
+.mrow{border-top:1px solid var(--hair);padding:6px 0}
 </style>
 </head>
 <body>
@@ -3816,7 +3818,7 @@ function gAttackSkill(lib){
   return /weapon|hand-to-hand|firearm|attack|melee|ranged|strike/i.test(ty)||(lib.check==="Evade"&&/\d+d\d+/.test(lib.damage||""));
 }
 function gDamage(txt){
-  var m=String(txt||"").match(/(\d+d\d+)\s*(?:\+\s*(Str|Dex|Con|Int|Cha)[a-z]*)?\s*(Piercing|Slashing|Bludgeoning|Fire|Ice|Lightning|Necrotic|Force|Poison|Holy|Sonic|Acid)?/i);
+  var m=String(txt||"").match(/(\d+d\d+)\s*(?:\+\s*(Str|Dex|Con|Int|Cha)[a-z]*)?\s*(Piercing|Slashing|Bludgeoning|Fire|Ice|Lightning|Electric|Necrotic|Force|Poison|Holy|Sonic|Acid|Psychic|Radiant|Cold|Thunder|Arcane|Shadow)?/i);
   return m?{dice:m[1],stat:m[2]?G_STATS[m[2].toLowerCase()]:"",type:m[3]||""}:null;
 }
 /* natural attacks written into ability lines: "Tusks: a natural attack at Rank =
@@ -3824,7 +3826,7 @@ function gDamage(txt){
    "Gain a Bite Attack at Rank 3 ...", "... uses your Throwing Rank and deals 1d6 + Dex" */
 function gNatural(line){
   var l=String(line||"").replace(/^\[\d+\s*pt\]\s*/,"");
-  var dm=l.match(/(\d+d\d+)\s*\+\s*(Str|Dex|Con|Int|Cha)[a-z]*\b\s*(Piercing|Slashing|Bludgeoning|Fire|Ice|Lightning|Necrotic|Force|Poison|Holy|Sonic|Acid)?/i);
+  var dm=l.match(/(\d+d\d+)\s*\+\s*(Str|Dex|Con|Int|Cha)[a-z]*\b\s*(Piercing|Slashing|Bludgeoning|Fire|Ice|Lightning|Electric|Necrotic|Force|Poison|Holy|Sonic|Acid|Psychic|Radiant|Cold|Thunder|Arcane|Shadow)?/i);
   if(!dm)return null;
   var usesM=l.match(/uses? your ([A-Z][\w\u2019' ]*?) Rank/);
   if(!/natural\b[^.]*?\battack|\b[A-Z]\w* Attack at Rank\b/i.test(l)&&!usesM)return null;
@@ -4294,6 +4296,56 @@ document.addEventListener("click",function(e){
   var t=e.target.closest?e.target.closest("[data-drink]"):null; if(!t)return;
   var c=active(); if(c)drinkHobby(c,parseInt(t.dataset.drink,10));
 });
+/* ---- casting a spell: spend the Mana, roll what the spell calls for, say so ---- */
+function spellStat(lib){
+  var st="";
+  String((lib&&lib.type)||"").split(/[,\s]+/).forEach(function(wd){if(!st&&wd.length>3&&G_STATS[wd.toLowerCase()])st=G_STATS[wd.toLowerCase()]});
+  if(!st){var om=String((lib&&lib.description)||"").match(/\b(Str|Int|Con|Dex|Cha)[a-z]*-Opposed/i);if(om)st=G_STATS[om[1].toLowerCase()]}
+  return st||"int";
+}
+function castSpell(c,ix){
+  var sp=c.spells[ix]; if(!sp)return;
+  var lib=S.library.spells.find(function(l){return l.id===sp.libId})||gLib("spells",sp.name)||{};
+  var nm=lib.name||sp.name||"Spell", rank=parseInt(sp.rank,10)||0;
+  var cost=parseInt(lib.mana,10)||0, cur=parseInt(c.manaCur,10)||0, mx=parseInt(c.enh.int||c.stats.int,10)||0;
+  if(cost>cur){toast("Not enough Mana to cast "+nm+". It needs "+cost+", you have "+cur+".","warn");return}
+  c.manaCur=cur-cost; save(); renderSheet();
+  recordUse(c,"Cast "+nm,"Rank "+rank+(cost?" \u00b7 \u2212"+cost+" Mana":" \u00b7 no Mana"));
+  castWindow(c,lib,nm,rank,{title:"You cast "+nm,line:"Rank "+rank+" \u00b7 "+(cost?"\u2212"+cost+" Mana, "+c.manaCur+" of "+mx+" left":"no Mana")});
+}
+/* the cast window, shared by casting and by spell scrolls: rolls what the
+   spell calls for, offers damage, and stays up until you're done with it */
+function castWindow(c,lib,nm,rank,o){
+  var st=spellStat(lib), isAtk=/\battack\b/i.test(lib.type||""), opp=String(lib.description||"").match(/\b(Str|Int|Con|Dex|Cha)[a-z]*-Opposed Spell Check/i);
+  /* a spell's own text wins: "Make a Con-Opposed Spell Check" even if it's typed as an attack */
+  var checkLabel=opp?opp[1].charAt(0).toUpperCase()+opp[1].slice(1).toLowerCase()+"-Opposed Spell Check":isAtk?"Spell Attack":"";
+  var check=null;
+  if(checkLabel){rollCheck(c,nm+" ("+checkLabel+")",[{l:"Rank",v:rank},{l:st.toUpperCase(),v:modOf(c,st)}]);check=S.rollLog[0]}
+  var dmg=gDamage(lib.damage), canDmg=!!(dmg&&dmg.dice), dmgText="";
+  function body(){
+    return '<h2 style="font-size:20px;margin-bottom:4px">'+esc(o.title)+'</h2>'
+      +'<div class="hint" style="margin-bottom:8px">'+esc(o.line)+(lib.range?' \u00b7 range '+esc(lib.range):'')+(lib.duration?' \u00b7 '+esc(lib.duration):'')+'</div>'
+      +(o.note?'<div style="margin-bottom:8px">'+esc(o.note)+'</div>':'')
+      +(check?'<div class="rollrow '+(/Critical Hit|Amazing|Standard Success/.test(check.tier)?"good":/Fail/.test(check.tier)?"bad":"")+'"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">'+esc(checkLabel)+'</b><span class="rolltot">'+esc(check.total)+'</span></div>'
+        +(check.tier?'<div class="rolltier">'+esc(check.tier)+'</div>':'')+'<div class="hint">'+esc(check.detail)+(opp?' \u00b7 against the target\u2019s own check':isAtk?' \u00b7 against the target\u2019s Evade':'')+'</div></div>':'')
+      +(dmgText?'<div class="rollrow"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">Damage</b><span class="rolltot">'+esc(dmgText.total)+'</span></div><div class="hint">'+esc(dmgText.detail)+'</div></div>':'')
+      +(lib.description?'<div style="margin-top:8px;line-height:1.5">'+esc(lib.description).replace(/\n+/g,"<br>")+'</div>':'')
+      +(!lib.name?'<p class="hint" style="margin-top:8px">'+esc(nm)+' isn\u2019t in your Library, so its rules can\u2019t be shown here.</p>':'')
+      +(rank>=5&&lib.up5?'<div class="hint" style="margin-top:6px">Remember your Rank '+(rank>=15?"5, 10 and 15":rank>=10?"5 and 10":"5")+' upgrades'+(o.scroll?"":" (the ? on the spell lists them)")+':</div>'
+        +(o.scroll?'<div class="hint" style="margin-top:2px">'+esc(lib.up5).replace(/\n+/g,"<br>")+'</div>':''):'')
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">'
+      +(canDmg&&!dmgText?'<button class="btn" id="castDmg">Roll damage</button>':'')+'<button class="btn pri" id="castDone">Done</button></div>';
+  }
+  function wire(){
+    $("castDone").addEventListener("click",closeModal);
+    if($("castDmg"))$("castDmg").addEventListener("click",function(){
+      var rx=rollExpr(dmg.dice), mod=modOf(c,dmg.stat);
+      recordRoll(c,{label:nm+" damage"+(o.scroll?" (scroll)":""),total:rx.total+mod,nat:0,detail:rx.text+(mod?(mod<0?" \u2212 ":" + ")+Math.abs(mod)+" "+dmg.stat.toUpperCase():"")+(dmg.type?" "+dmg.type:""),tier:"",mode:"normal"});
+      dmgText=S.rollLog[0]; openModal(body()); wire();
+    });
+  }
+  openModal(body()); wire();
+}
 /* ---- what a skill does, shown under its row on the sheet ---- */
 var SKILL_INFO_OPEN={};
 function skillInfoHtml(s){
@@ -4698,13 +4750,7 @@ $("sheetBody").addEventListener("click",function(e){
   if(t.dataset.s==="del"){c.skills.splice(ix,1);save();renderSheet();return}
   if(t.dataset.a==="del"){c.attacks.splice(ix,1);save();renderSheet();return}
   if(t.dataset.sp==="del"){c.spells.splice(ix,1);save();renderSheet();return}
-  if(t.dataset.sp==="cast"){
-    var sp=c.spells[ix];
-    var lib=S.library.spells.find(function(l){return l.id===sp.libId})||{};
-    var cost=parseInt(lib.mana,10)||0, cur=parseInt(c.manaCur,10)||0;
-    if(cost>cur){toast("Not enough mana. Need "+cost+", have "+cur+".","warn");return}
-    c.manaCur=cur-cost; save(); renderSheet();
-  }
+  if(t.dataset.sp==="cast"){castSpell(c,ix);return}
 });
 
 /* ---------------- inventory ---------------- */
@@ -4765,7 +4811,7 @@ function itemCat(it){
 function itemRarity(it){var l=libItem(it);return it.rarity||(l&&l.rarity)||""}
 function itemEffect(it){var l=libItem(it);return (l&&l.effect)||""}
 function noTransfer(it){var l=libItem(it);return /can.?t be (?:sold or )?(?:given|transferred|sold)|may not be sold or transferred/i.test((l&&(l.notes+" "+l.effect))||it.notes||"")}
-function isConsumable(it){var c=itemCat(it);return c==="Potion"||c==="Scroll"||/bandage|dynamite|grenade|bomb|food|ration|meal/i.test(it.name||"")}
+function isConsumable(it){var c=itemCat(it);if(isTome(it)||isSpellScroll(it))return true;return c==="Potion"||c==="Scroll"||/bandage|dynamite|grenade|bomb|food|ration|meal/i.test(it.name||"")}
 function itemLabel(it){var q=parseInt(it.qty,10)||1;return it.name+(q>1?" \u00d7"+q:"")}
 function newItem(fields){return Object.assign({id:uid(),name:"",qty:1,weight:"",slot:"",notes:"",where:"inv",at:null,added:Date.now()},fields||{})}
 function itemFromLib(l,qty){return newItem({name:l.name,qty:qty||1,weight:l.weight||"",slot:l.slot||"",notes:(l.effect||"").slice(0,200),libId:l.id,category:l.category||"",rarity:l.rarity||""})}
@@ -4822,9 +4868,41 @@ function syncInv(c){
   c.hotlist=hot;
 }
 function itemAt(c,where,at){return c.inventory.find(function(it){return it.where===where&&String(it.at)===String(at)})}
+/* "Silver Ring of +2 to a Stat": the book leaves the stat to the GM when it
+   drops, so each such item gets its stat chosen (or rolled) once, then keeps it */
+function statChoiceN(it){var m=((it.name||"")+" "+(itemEffect(it)||"")).match(/\+(\d+)\s+to\s+(?:a|any|one)\s+Stat\b/i);return m?+m[1]:0}
+function statPicker(c,it,then){
+  var n=statChoiceN(it), keys=["str","int","con","dex","cha"], picked="";
+  function body(){
+    return '<h2 style="font-size:20px;margin-bottom:6px">Which stat does this '+esc(it.name)+' boost?</h2>'
+      +'<p class="hint" style="margin:0 0 10px">The rulebook leaves the stat to your GM when it drops. Choose it, or roll if your GM likes surprises. This ring keeps the stat from then on.</p>'
+      +'<div class="pill" style="flex-wrap:wrap;margin-bottom:8px">'+keys.map(function(k){return '<button data-spick="'+k+'" aria-pressed="'+(picked===k)+'">+'+n+' '+G_STATNAME[k]+'</button>'}).join("")+'</div>'
+      +'<button class="btn" id="spRoll">Roll a random stat</button>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="spNo">Not now</button><button class="btn pri" id="spYes"'+(picked?'':' disabled')+'>'+(then?"Choose and equip":"Choose it")+'</button></div>';
+  }
+  function wire(){
+    $("spNo").addEventListener("click",closeModal);
+    $("modalBox").querySelectorAll("[data-spick]").forEach(function(b){b.addEventListener("click",function(){picked=b.dataset.spick;openModal(body());wire()})});
+    $("spRoll").addEventListener("click",function(){var r=rnd(5);picked=keys[r-1];
+      recordRoll(c,{label:it.name+", random stat",total:r,nat:0,detail:"d5 ["+r+"] \u2192 "+G_STATNAME[picked],tier:"",mode:"normal"});openModal(body());wire()});
+    $("spYes").addEventListener("click",function(){
+      if(!picked)return;
+      var one=it;
+      if((parseInt(it.qty,10)||1)>1){it.qty=(parseInt(it.qty,10)||1)-1;one=newItem({name:it.name,weight:it.weight,slot:it.slot,notes:it.notes,libId:it.libId,category:it.category,rarity:it.rarity,where:it.where==="space"?"space":"inv"});c.inventory.push(one)}
+      one.statPick=picked; one.statN=n;
+      one.name=/to\s+(?:a|any|one)\s+Stat\b/i.test(one.name)?one.name.replace(/to\s+(?:a|any|one)\s+Stat\b/i,G_STATNAME[picked]):one.name+" ("+G_STATNAME[picked]+")";
+      closeModal();
+      if(then)then(one); else{syncInv(c);save();renderInv();toast("It\u2019s now the "+one.name+".","good")}
+    });
+  }
+  openModal(body()); wire();
+}
 /* equipping applies what the item's effect can be pinned down to; unequipping takes it back */
 function itemPlan(it){
   var eff=itemEffect(it)||it.notes||"";
+  if(it.statPick){var pp=grantPlan({id:"item:"+it.id,name:it.name,statBonus:"",skillBonus:"",abilities:"",drawbacks:"",drBonus:""},"item_"+it.id,{strict:true});
+    pp.fixed=[{type:"stat",key:it.statPick,label:G_STATNAME[it.statPick],n:it.statN||statChoiceN(it)||0}];pp.dr=0;pp.abilities="";pp.items=[];pp.boxes=[];pp.natural=[];pp.size="";return pp}
+  if(statChoiceN(it))eff=eff.replace(/\+\d+\s+to\s+(?:a|any|one)\s+Stat\b/ig,"");
   var p=grantPlan({id:"item:"+it.id,name:it.name,statBonus:eff,skillBonus:"",abilities:"",drawbacks:"",drBonus:""},"item_"+it.id,{strict:true});
   var drm=eff.match(/\+(\d+)\s*(?:DR\b|Damage Resistance)/i); p.dr=drm?+drm[1]:0;
   p.abilities="";p.items=[];p.boxes=[];p.natural=[];p.size="";
@@ -4833,6 +4911,7 @@ function itemPlan(it){
 function itemBonusText(p){return p.fixed.map(function(t){return (t.n>0?"+":"")+t.n+" "+t.label}).concat(p.dr?["+"+p.dr+" DR"]:[]).join(", ")}
 function equipItem(c,it,key){
   if(key==="hand2"&&c.equipped.twoHanded){toast("Your main hand needs both hands. Untick two-handed first.","warn");return}
+  if(statChoiceN(it)&&!it.statPick){statPicker(c,it,function(one){equipItem(c,one,key)});return}
   var cur=itemAt(c,"equip",key); if(cur&&cur!==it)unequipItem(c,cur,true);
   if((parseInt(it.qty,10)||1)>1){it.qty=(parseInt(it.qty,10)||1)-1;it=newItem({name:it.name,weight:it.weight,slot:it.slot,notes:it.notes,libId:it.libId,category:it.category,rarity:it.rarity});c.inventory.push(it)}
   if(it.where==="equip"&&it.at!==key)grantRevert(c,"item_"+it.id);
@@ -4861,11 +4940,17 @@ function inFight(){return !!(S.encounter&&S.encounter.entries&&S.encounter.entri
 function itemInfoHtml(it){
   var l=libItem(it), bits=[itemCat(it),itemRarity(it),(l&&l.slot)||it.slot?((l&&l.slot)||it.slot)+" slot":"",it.weight?it.weight+" lb":""].filter(Boolean);
   var h='<div class="hint" style="margin-bottom:6px">'+esc(bits.join(" \u00b7 "))+'</div>';
+  if(it.spellName){var sl=(it.spellLibId&&S.library.spells.find(function(x){return x.id===it.spellLibId}))||gLib("spells",it.spellName);
+    h+='<div style="margin-bottom:6px"><b>'+(isTome(it)?"Reading it teaches":"Casts once, with no Mana")+':</b> '+esc(it.spellName)+' at Rank '+esc(it.spellRank)+'</div>'
+      +'<div class="skinfo" style="margin:0 0 6px">'+libInfoHtml(sl,it.spellRank,true,it.spellName)+'</div>';}
+  else if(isTome(it)||isSpellScroll(it))h+='<div style="margin-bottom:6px"><b>No spell chosen yet.</b> You\u2019ll pick it (or roll it) when you first use it, or now with \u201cChoose its spell\u201d.</div>';
   if(l&&l.effect)h+='<div style="line-height:1.5">'+esc(l.effect).replace(/\n+/g,"<br>")+'</div>';
   if(l&&l.notes)h+='<div class="hint" style="margin-top:4px">'+esc(l.notes)+'</div>';
   if(!l&&it.notes)h+='<div style="line-height:1.5">'+esc(it.notes)+'</div>';
-  if(!l&&!it.notes)h+='<p class="hint" style="margin:0">'+esc(it.name||"This item")+' isn\u2019t in your Library. Add it there (or import its book) to see its rules here.</p>';
-  if(l){var pl=itemPlan(it);if(pl.fixed.length||pl.dr)h+='<div style="margin-top:6px"><b>When equipped:</b> '+esc(itemBonusText(pl))+'</div>'}
+  if(!l&&!it.notes&&!it.spellName)h+='<p class="hint" style="margin:0">'+esc(it.name||"This item")+' isn\u2019t in your Library. Add it there (or import its book) to see its rules here.</p>';
+  if(statChoiceN(it)&&!it.statPick)h+='<div style="margin-top:6px"><b>When equipped:</b> +'+statChoiceN(it)+' to the stat you choose for it (you\u2019ll be asked when you equip it).</div>';
+  else{var pl=itemPlan(it);if(pl.fixed.length||pl.dr)h+='<div style="margin-top:6px"><b>When equipped:</b> '+esc(itemBonusText(pl))+'</div>'}
+  if(it.magic)h+='<div class="hint" style="margin-top:6px">Rolled with the Core Rulebook\u2019s Randomized Magic Items rules. Buffs, resistances, inherent spells and unique powers are for your table to run.</div>';
   h+=mentionsHtml((l&&l.effect)||it.notes||"",it.name);
   if(l&&(l.source||l.page))h+='<div class="hint" style="margin-top:6px">'+esc([l.source,l.page?"p. "+l.page:""].filter(Boolean).join(", "))+'</div>';
   return h;
@@ -4881,6 +4966,8 @@ function itemCard(c,it,lift){
     actions.push('<button class="btn sm" data-act="space" data-id="'+it.id+'">To Personal Space</button>');
   }
   if(it.where==="space")actions.push('<button class="btn sm" data-act="stow" data-id="'+it.id+'">Take to Inventory</button>');
+  if((isTome(it)||isSpellScroll(it))&&!it.spellName)actions.push('<button class="btn sm" data-act="pickspell" data-id="'+it.id+'">Choose its spell</button>');
+  if(statChoiceN(it)&&!it.statPick)actions.push('<button class="btn sm" data-act="pickstat" data-id="'+it.id+'">Choose its stat</button>');
   if(isConsumable(it)&&it.where!=="space")actions.push('<button class="btn sm pri" data-act="use" data-id="'+it.id+'">Use</button>');
   if(it.where!=="space"&&rollCode()&&fbDb&&fbUser)actions.push('<button class="btn sm" data-act="give" data-id="'+it.id+'"'+(noTransfer(it)?' disabled title="This item can\u2019t be given away"':'')+'>Give</button>');
   return '<div class="tr icard" data-id="'+it.id+'">'
@@ -4934,6 +5021,7 @@ function renderInv(){
         +'<button class="btn sm" data-act="info" data-id="'+it.id+'" style="min-width:26px">?</button>'
         +'<button class="btn sm" data-act="unequip" data-id="'+it.id+'">Unequip</button></div>'
         +(hl?'<div class="hint" id="headHat">'+esc(hl)+'</div>':'')
+        +((statChoiceN(it)&&!it.statPick)?'<button class="btn sm" data-act="pickstat" data-id="'+it.id+'">Choose its stat</button>':'')
         +((pl.fixed.length||pl.dr)?(applied?'<div class="hint">Bonuses on: '+esc(itemBonusText(pl))+'</div>':'<button class="btn sm" data-act="applybonus" data-id="'+it.id+'">Apply its bonuses ('+esc(itemBonusText(pl))+')</button>'):'')
         +'<div class="skinfo" data-iteminfo="'+it.id+'"'+(INVUI.info[it.id]?'':' style="display:none"')+'>'+(INVUI.info[it.id]?itemInfoHtml(it):'')+'</div>';
     }else if(blocked){h+='<div class="hint">Your two-handed weapon uses this hand.</div>'}
@@ -4963,7 +5051,7 @@ function renderInv(){
   shown.sort(INVUI.sort==="rarity"?function(a,b){return rk(b)-rk(a)||a.name.localeCompare(b.name)}:INVUI.sort==="recent"?function(a,b){return (b.added||0)-(a.added||0)}:function(a,b){return (a.name||"").localeCompare(b.name||"")});
   h+='<div class="bar" style="margin-top:20px"><h3>Inventory</h3><span class="sp"></span>'
     +'<select id="invPick" style="max-width:200px"><option value="">Add from library\u2026</option>'+S.library.items.map(function(it){return '<option value="'+it.id+'">'+esc(it.name)+'</option>'}).join("")+'</select>'
-    +'<button class="btn sm pri" id="invAdd">New item</button></div>'
+    +'<button class="btn sm" id="invMagic">Roll a magic item</button><button class="btn sm pri" id="invAdd">New item</button></div>'
     +'<div class="invtools"><input type="search" id="invQ" placeholder="Search your items" value="'+esc(INVUI.q)+'">'
     +'<select id="invSort"><option value="name"'+(INVUI.sort==="name"?" selected":"")+'>A\u2013Z</option><option value="rarity"'+(INVUI.sort==="rarity"?" selected":"")+'>Rarity</option><option value="recent"'+(INVUI.sort==="recent"?" selected":"")+'>Newest</option></select></div>'
     +'<div class="pill invcats"><button data-cat="all" aria-pressed="'+(INVUI.cat==="all")+'">All</button>'+cats.map(function(k){return '<button data-cat="'+esc(k)+'" aria-pressed="'+(INVUI.cat===k)+'">'+esc(k)+'</button>'}).join("")+'</div>';
@@ -5035,6 +5123,8 @@ $("invBody").addEventListener("change",function(e){
 });
 $("invBody").addEventListener("click",function(e){
   var c=active(); if(!c)return; var t=e.target.closest("button,[data-cat]"); if(!t)return;
+  if(t.id==="invMagic"){magicItemWindow(c,{},function(mi){c.inventory.push(mi);syncInv(c);save();renderInv();
+    recordUse(c,"Got a magic item: "+mi.name,mi.notes);toast("Added the "+mi.name+" to your Inventory.","good")});return}
   if(t.id==="invAdd"){var ni=newItem({});c.inventory.push(ni);INVUI.edit=ni.id;save();renderInv();return}
   if(t.id==="boxAdd"){c.boxes.push({id:uid(),name:"",rarity:"",why:""});save();renderInv();return}
   if(t.dataset.cat){INVUI.cat=t.dataset.cat;renderInv();return}
@@ -5048,6 +5138,12 @@ $("invBody").addEventListener("click",function(e){
   if(act==="plus"){it.qty=(parseInt(it.qty,10)||1)+1;syncInv(c);save();renderInv();return}
   if(act==="del"){ask("Remove "+(it.name||"this item")+"?","Remove",function(){grantRevert(c,"item_"+it.id);c.inventory.splice(c.inventory.indexOf(it),1);syncInv(c);save();renderInv();renderSheet()});return}
   if(act==="unequip"){unequipItem(c,it);return}
+  if(act==="pickspell"){spellPicker(c,it,isTome(it)?"tome":"scroll",null);return}
+  if(act==="pickstat"){
+    if(it.where==="equip"){var at=it.at;statPicker(c,it,function(one){equipItem(c,one,at)})}
+    else statPicker(c,it,null);
+    return;
+  }
   if(act==="applybonus"){var p=itemPlan(it);grantApply(c,p,[],[]);save();renderInv();renderSheet();toast("Applied "+it.name+": "+itemBonusText(p)+".","good");return}
   if(act==="hot"){
     var free=-1;for(var i=0;i<10;i++){if(!c.hotlist[i]){free=i;break}}
@@ -5078,6 +5174,7 @@ function spendOne(c,it){
 function useItem(c,it){
   var name=it.name||"item", eff=itemEffect(it)||it.notes||"", isPotion=itemCat(it)==="Potion", out=[];
   if(/earth hobby potion/i.test(name)){drinkHobby(c,c.inventory.indexOf(it));return}
+  if(isTome(it)||isSpellScroll(it)){useTomeOrScroll(c,it);return}
   if(skillPotionN(name)){potionOfSkill(c,it,skillPotionN(name));return}
   if(inFight()&&it.where==="inv")out.push("using it straight from your Inventory takes a Retrieve Action first");
   if(isPotion&&inFight()){
@@ -5102,17 +5199,26 @@ function useItem(c,it){
 /* Skill potions: the rulebook says "Choose a Skill and gain N Ranks in it",
    any skill, known or new. Works like the Earth Hobby Potion's drink screen. */
 function skillPotionN(name){var m=String(name||"").match(/Potion of \+(\d+) Skill|\+(\d+) Skill(?: Rank)? Potion/i);return m?+(m[1]||m[2]):0}
+/* House rule: a skill potion only raises skills the crawler already has,
+   unless the potion itself says it can teach a new one */
+function potionTeachesNew(it){
+  var l=libItem(it), t=[it.name,it.notes,l&&l.effect,l&&l.notes].filter(Boolean).join(" ");
+  return /\b(?:any skill|a new skill|new skills?|learns? (?:a |an )?(?:new )?skill|even (?:one|a skill) you don.?t (?:have|know)|a skill you don.?t (?:have|know))\b/i.test(t);
+}
 function potionOfSkill(c,it,n){
   var mine=c.skills.filter(function(s){return s.name}).slice().sort(function(a,b){return a.name.localeCompare(b.name)});
   var mineN={}; mine.forEach(function(s){mineN[gNorm(s.name)]=1});
-  var lib=S.library.skills.filter(function(s){return s.name&&!mineN[gNorm(s.name)]&&!/earth hobby/i.test(s.type||"")});
+  var teach=potionTeachesNew(it);
+  var lib=teach?S.library.skills.filter(function(s){return s.name&&!mineN[gNorm(s.name)]&&!/earth hobby/i.test(s.type||"")}):[];
   var kinds={}; lib.forEach(function(s){var k=s.type||"Other";(kinds[k]=kinds[k]||[]).push(s)});
   var picked="", note="";
   function rankOf(nm){var ex=gFind(c.skills,nm);return ex?(parseInt(ex.rank,10)||0):0}
   function body(){
     var opt=function(nm,label){return '<option value="'+esc(nm)+'"'+(picked===nm?" selected":"")+'>'+esc(label)+'</option>'};
     return '<h2 style="font-size:20px;margin-bottom:6px">Drink the '+esc(it.name)+'?</h2>'
-      +'<p class="hint" style="margin:0 0 10px">Choose a skill and gain '+n+' Rank'+(n===1?"":"s")+' in it, permanently. It can be one you already have, or a new one.</p>'
+      +'<p class="hint" style="margin:0 0 10px">Choose '+(teach?"a skill":"one of your skills")+' and gain '+n+' Rank'+(n===1?"":"s")+' in it, permanently. '
+      +(teach?'This potion can teach a new skill, too.':'It only raises skills you already have.')+'</p>'
+      +(!mine.length&&!teach?'<p style="margin:0 0 10px"><b>You don\u2019t have any skills for it to raise yet.</b></p>':'')
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn" id="posRoll">Roll a random skill</button>'
       +'<span class="hint" style="align-self:center">optional: the rulebook has you choose</span></div>'
       +(note?'<div style="margin-bottom:6px">'+note+'</div>':'')
@@ -5120,12 +5226,13 @@ function potionOfSkill(c,it,n){
       +(mine.length?'<optgroup label="Your skills">'+mine.map(function(s){var r=parseInt(s.rank,10)||0;return opt(s.name,s.name+": Rank "+r+" \u2192 "+(r+n))}).join("")+'</optgroup>':'')
       +Object.keys(kinds).sort().map(function(k){return '<optgroup label="Learn a new one: '+esc(k)+'">'+kinds[k].sort(function(a,b){return a.name.localeCompare(b.name)}).map(function(s){return opt(s.name,s.name+": new, Rank "+n)}).join("")+'</optgroup>'}).join("")
       +'</select></label>'
-      +'<label class="f" style="margin-top:6px"><span class="lab">Or type a skill</span><input type="text" id="posName" placeholder="Any skill your GM okays"></label>'
+      +(teach?'<label class="f" style="margin-top:6px"><span class="lab">Or type a skill</span><input type="text" id="posName" placeholder="Any skill your GM okays"></label>':'')
       +'<div id="posDesc" class="hint" style="margin-top:6px"></div>'
-      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="posNo">Not now</button><button class="btn pri" id="posYes">Drink it</button></div>';
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="posNo">Not now</button><button class="btn pri" id="posYes"'+(!mine.length&&!teach?' disabled':'')+'>Drink it</button></div>';
   }
+  function typed(){return $("posName")?($("posName").value||"").trim():""}
   function describe(){
-    var el=$("posDesc"), nm=($("posName").value||"").trim()||$("posPick").value; if(!el)return;
+    var el=$("posDesc"), nm=typed()||$("posPick").value; if(!el)return;
     if(!nm){el.textContent="";return}
     var l=gLib("skills",nm), to=rankOf(nm)+n;
     el.textContent=(l&&l.description?l.description.slice(0,220)+(l.description.length>220?"\u2026 ":" "):"")
@@ -5134,7 +5241,7 @@ function potionOfSkill(c,it,n){
   function wire(){
     $("posNo").addEventListener("click",closeModal);
     $("posPick").addEventListener("change",function(){picked=$("posPick").value;describe()});
-    $("posName").addEventListener("input",describe);
+    if($("posName"))$("posName").addEventListener("input",describe);
     $("posRoll").addEventListener("click",function(){
       var pool=mine.map(function(s){return s.name}).concat(lib.map(function(s){return s.name}));
       if(!pool.length){toast("Your Library has no skills yet. Import a book, or type one.","warn");return}
@@ -5143,8 +5250,9 @@ function potionOfSkill(c,it,n){
       openModal(body()); wire(); describe();
     });
     $("posYes").addEventListener("click",function(){
-      var nm=($("posName").value||"").trim()||$("posPick").value||"";
+      var nm=typed()||$("posPick").value||"";
       if(!nm){toast("Choose or roll a skill first.","warn");return}
+      if(!teach&&!gFind(c.skills,nm)){toast("This potion only raises skills you already have.","warn");return}
       var ex=gFind(c.skills,nm), now;
       if(ex){ex.rank=(parseInt(ex.rank,10)||0)+n;now=ex.rank}
       else{var l=gLib("skills",nm), sk=newSkill(l?l.name:nm,n);sk.notes="from a "+it.name;c.skills.push(sk);now=n;nm=sk.name}
@@ -5155,16 +5263,267 @@ function potionOfSkill(c,it,n){
   }
   openModal(body()); wire();
 }
+/* ---- spellbooks and spell scrolls: they carry an actual spell ----
+   The rulebook: reading a spellbook grants its Spell at a set Rank (typically
+   1-5; random is 1d6-1, minimum 1) and it disappears. A Spell Scroll is one
+   shot, cast with no Mana. Knowing the spell already adds 1d2+1 Ranks. */
+function isTome(it){return it.spellKind==="tome"||/spell ?books?\b|magic tomes?\b|\btomes?\b/i.test(it.name||"")||/spellbook/i.test(itemCat(it))}
+function isSpellScroll(it){return it.spellKind==="scroll"||/spell scrolls?\b/i.test(it.name||"")}
+function tomeBase(it,kind){
+  var n=String(it.name||"").replace(/\s*\(Rank \d+\)\s*$/,"").replace(/\s+of\s+.+$/,"").replace(/:\s*.+$/,"").trim();
+  n=n.replace(/^(.*?)(Spell ?books|Magic Tomes|Spell Scrolls|Tomes)$/i,function(m,a,b){return a+b.replace(/s$/i,"")});
+  return n||(kind==="tome"?"Spellbook":"Spell Scroll");
+}
+function tomeName(base,kind,spell,rank){return kind==="tome"?base+" of "+spell+" (Rank "+rank+")":base+": "+spell+" (Rank "+rank+")"}
+function rollTomeRank(c,label){var r=rnd(6)-1; if(r<1)r=1; recordRoll(c,{label:label+", Rank",total:r,nat:0,detail:"1d6\u22121, minimum 1",tier:"",mode:"normal"}); return r}
+function spellPicker(c,it,kind,then){
+  var spells=S.library.spells.filter(function(s){return s.name}).sort(function(a,b){return a.name.localeCompare(b.name)});
+  var picked=it.spellName||"", rank=it.spellRank||"";
+  var word=kind==="tome"?"spellbook":"scroll";
+  function body(){
+    return '<h2 style="font-size:20px;margin-bottom:6px">Which spell is in this '+word+'?</h2>'
+      +'<p class="hint" style="margin:0 0 10px">'+(kind==="tome"
+        ?'Reading a spellbook grants its Spell at a set Rank, then the book is gone. The rulebook\u2019s random Rank is 1d6\u22121 (minimum 1).'
+        :'A Spell Scroll casts its Spell once, at its Rank, with no Mana. Then it\u2019s gone.')+' Your GM decides, or roll for it.</p>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="btn" id="tpRoll">Roll a random spell</button><button class="btn" id="tpRank">Roll the Rank (1d6\u22121)</button></div>'
+      +'<label class="f"><span class="lab">Spell</span><select id="tpSpell"><option value="">Choose a spell\u2026</option>'
+      +spells.map(function(s){return '<option value="'+esc(s.name)+'"'+(picked===s.name?" selected":"")+'>'+esc(s.name)+(s.mana?" ("+esc(s.mana)+" Mana)":"")+'</option>'}).join("")+'</select></label>'
+      +'<label class="f" style="margin-top:6px"><span class="lab">Rank</span><input type="number" id="tpRankIn" min="1" max="20" value="'+esc(rank)+'" placeholder="1 to 5 is typical"></label>'
+      +(spells.length?'':'<p class="hint">Your Library has no spells yet. Import a book with spells first.</p>')
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="tpNo">Not now</button><button class="btn pri" id="tpYes">'+(then?"Choose and "+(kind==="tome"?"read":"cast"):"Choose it")+'</button></div>';
+  }
+  function wire(){
+    $("tpNo").addEventListener("click",closeModal);
+    $("tpSpell").addEventListener("change",function(){picked=$("tpSpell").value});
+    $("tpRankIn").addEventListener("input",function(){rank=$("tpRankIn").value});
+    $("tpRoll").addEventListener("click",function(){if(!spells.length)return;var k=rnd(spells.length);picked=spells[k-1].name;
+      recordRoll(c,{label:"Random spell for a "+word,total:k,nat:0,detail:"d"+spells.length+" ["+k+"] \u2192 "+picked,tier:"",mode:"normal"});openModal(body());wire()});
+    $("tpRank").addEventListener("click",function(){rank=rollTomeRank(c,"Random "+word);openModal(body());wire()});
+    $("tpYes").addEventListener("click",function(){
+      var r=parseInt(rank,10);
+      if(!picked){toast("Choose or roll a spell first.","warn");return}
+      if(!(r>=1)){toast("Give it a Rank of at least 1, or roll it.","warn");return}
+      var one=it;
+      if((parseInt(it.qty,10)||1)>1){it.qty=(parseInt(it.qty,10)||1)-1;one=newItem({name:it.name,weight:it.weight,slot:it.slot,notes:it.notes,libId:it.libId,category:it.category,rarity:it.rarity,where:it.where==="space"?"space":(it.where==="hot"?"inv":it.where)});c.inventory.push(one)}
+      var ls=gLib("spells",picked);
+      one.spellKind=kind; one.spellName=ls?ls.name:picked; one.spellLibId=ls?ls.id:null; one.spellRank=r;
+      one.name=tomeName(tomeBase(it,kind),kind,one.spellName,r);
+      if(!one.category)one.category=kind==="tome"?"Spellbook":"Scroll";
+      syncInv(c); save(); closeModal();
+      if(then)then(one); else{renderInv();toast("It\u2019s now the "+one.name+".","good")}
+    });
+  }
+  openModal(body()); wire();
+}
+function readTome(c,it){
+  var ls=(it.spellLibId&&S.library.spells.find(function(s){return s.id===it.spellLibId}))||gLib("spells",it.spellName), nm=ls?ls.name:it.spellName;
+  var ex=gFind(c.spells,nm), msg;
+  if(ex){var a=rnd(2)+1; ex.rank=(parseInt(ex.rank,10)||0)+a;
+    recordRoll(c,{label:"Already knew "+nm+": extra Ranks",total:a,nat:0,detail:"1d2+1",tier:"",mode:"normal"});
+    msg="You already knew "+nm+", so it gained "+a+" Rank"+(a===1?"":"s")+" (now Rank "+ex.rank+")";}
+  else{c.spells.push({id:uid(),libId:ls?ls.id:null,name:nm,rank:it.spellRank});msg="You learned "+nm+" at Rank "+it.spellRank}
+  spendOne(c,it); save(); renderInv(); renderSheet();
+  recordUse(c,"Read "+it.name,msg);
+  toast(msg+". The book is gone.","good");
+}
+function castScroll(c,it){
+  var ls=(it.spellLibId&&S.library.spells.find(function(s){return s.id===it.spellLibId}))||gLib("spells",it.spellName)||{}, nm=ls.name||it.spellName, rank=parseInt(it.spellRank,10)||1;
+  spendOne(c,it); save(); renderInv(); renderSheet();
+  recordUse(c,"Cast "+nm+" from a scroll","Rank "+rank+" \u00b7 no Mana");
+  castWindow(c,ls,nm,rank,{title:"You cast "+nm+" from a scroll",line:"Rank "+rank+" \u00b7 no Mana",note:"The scroll is used up.",scroll:true});
+}
+function useTomeOrScroll(c,it){
+  var kind=isTome(it)?"tome":"scroll";
+  var go=function(one){if(kind==="tome")readTome(c,one); else castScroll(c,one)};
+  if(!it.spellName)spellPicker(c,it,kind,go); else go(it);
+}
+/* the Library: any spell can be handed out as a spellbook or a scroll */
+function giveSpellAs(spell,kind){
+  var c=active(); if(!c){toast("Pick a crawler on the Roster first.","warn");return}
+  ensureInv(c);
+  var word=kind==="tome"?"Spellbook":"Spell Scroll";
+  openModal('<h2 style="font-size:20px;margin-bottom:6px">Give '+esc(c.name||"your crawler")+' a '+word.toLowerCase()+' of '+esc(spell.name)+'?</h2>'
+    +'<label class="f"><span class="lab">Rank</span><input type="number" id="gsRank" min="1" max="20" value="'+(kind==="scroll"?5:"")+'" placeholder="1 to 5 is typical"></label>'
+    +'<button class="btn sm" id="gsRoll" style="margin-top:6px">Roll the Rank (1d6\u22121)</button>'
+    +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="gsNo">Cancel</button><button class="btn pri" id="gsYes">Add it to their Inventory</button></div>');
+  $("gsNo").addEventListener("click",closeModal);
+  $("gsRoll").addEventListener("click",function(){$("gsRank").value=rollTomeRank(c,word+" of "+spell.name)});
+  $("gsYes").addEventListener("click",function(){
+    var r=parseInt($("gsRank").value,10); if(!(r>=1)){toast("Give it a Rank of at least 1, or roll it.","warn");return}
+    var it=newItem({name:tomeName(word,kind,spell.name,r),category:kind==="tome"?"Spellbook":"Scroll",spellKind:kind,spellName:spell.name,spellLibId:spell.id,spellRank:r,notes:""});
+    c.inventory.push(it); syncInv(c); save(); closeModal(); renderInv();
+    toast("Added the "+it.name+" to "+(c.name||"your crawler")+"\u2019s Inventory.","good");
+  });
+}
+
+/* ---- randomized magic items (Core Rulebook, Randomized Magic Items, Tables 38-42) ----
+   Rolls by rarity: Silver 1, Gold 2, Platinum 3, Legendary 4, Celestial 5;
+   Bronze items are mundane. Table 38 sets the type, which picks the benefit
+   table. Rolling "Something Unique" stops the rolls; it's stronger for each
+   roll it cut short. Benefits are written so equipping the item applies them. */
+var MAGIC_ROLLS={Silver:1,Gold:2,Platinum:3,Legendary:4,Celestial:5};
+var MAGIC_TYPES=[["weapon","Enchanted mundane item or weapon"],["clothing","Enchanted clothing"],["accessory","Enchanted accessory (jewel, belt, patch, tattoo\u2026)"]];
+var MAGIC_TABLE={
+  weapon:["stat","skill","buff","passive","spell","unique"],
+  clothing:["stat","skill","buff","resist","dr","unique"],
+  accessory:["stat","skill","buff","external","spell","unique"]};
+var MAGIC_LABEL={stat:"Stat bonus",skill:"Skill bonus",buff:"A buff (not a stat or skill bonus)",passive:"A Passive skill at Rank = Floor",
+  spell:"Inherent spell (no Mana; cooldown)",resist:"Resistance to an uncommon damage type",dr:"+1 Damage Resistance",
+  external:"Once per Floor: Recovery (full Health) or Restore (full Mana)",unique:"Something Unique"};
+var UNIQUE_D6=["GM\u2019s choice","Interacts with a god","The thing is intelligent","Summons minions to fight for you","Mimics something from the encounter where it was earned","Player\u2019s choice (with GM approval)"];
+var UNCOMMON_DMG=["Force","Holy","Necrotic","Poison","Acid","Sonic","Psychic","Electric","Radiant"];
+function skillX(tier){return tier==="Silver"?1:tier==="Gold"?rnd(3):tier==="Platinum"?rnd(3)+1:tier==="Legendary"?5:6}
+function statX(tier,c,k){
+  if(tier==="Silver")return 2; if(tier==="Gold")return rnd(3)+2;
+  var pct=tier==="Platinum"?5:tier==="Legendary"?10:20, v=parseInt(c.enh[k]||c.stats[k],10)||0;
+  return Math.max(1,Math.floor(v*pct/100));
+}
+function magicSlotsFor(type){return type==="clothing"?["head","torso","arms","legs","feet","gloves","cape"]:type==="accessory"?["acc0","belt"]:["hand1"]}
+function magicItemWindow(c,opts,done){
+  opts=opts||{};
+  var M={tier:opts.rarity&&MAGIC_ROLLS[opts.rarity]?opts.rarity:"Silver",type:"",base:"",slot:"",benefits:[],name:"",note:""};
+  var spells=S.library.spells.filter(function(s){return s.name}).sort(function(a,b){return a.name.localeCompare(b.name)});
+  var skills=S.library.skills.filter(function(s){return s.name&&!/earth hobby/i.test(s.type||"")}).sort(function(a,b){return a.name.localeCompare(b.name)});
+  var passives=skills.filter(function(s){return /passive/i.test((s.check||"")+" "+(s.type||""))});
+  var floor=c.floor||1;
+  function newBenefit(kind,i,total){
+    var b={kind:kind};
+    if(kind==="stat"){b.stat=["str","int","con","dex","cha"][rnd(5)-1];b.n=statX(M.tier,c,b.stat)}
+    if(kind==="skill"){b.skill="";b.n=skillX(M.tier)}
+    if(kind==="passive"){b.skill="";b.n=floor}
+    if(kind==="spell"){b.spell="";b.n=skillX(M.tier)}
+    if(kind==="resist"){b.dmg=UNCOMMON_DMG[rnd(UNCOMMON_DMG.length)-1]}
+    if(kind==="external"){b.which=rnd(2)===1?"Recovery (full Health)":"Restore (full Mana)"}
+    if(kind==="unique"){var u=rnd(6);b.uniq=UNIQUE_D6[u-1];b.uroll=u;b.power=Math.max(1,total-i);b.text=""}
+    if(kind==="buff")b.text="";
+    return b;
+  }
+  function rollAll(){
+    var total=MAGIC_ROLLS[M.tier], rolls=[]; M.benefits=[];
+    for(var i=0;i<total;i++){var r=rnd(6), kind=MAGIC_TABLE[M.type][r-1]; rolls.push(r);
+      M.benefits.push(newBenefit(kind,i,total)); if(kind==="unique")break;}
+    recordRoll(c,{label:"Magic item, "+M.tier+" "+(M.type==="weapon"?"item/weapon":M.type),total:rolls.length,nat:0,
+      detail:rolls.map(function(r,i){return "d6 ["+r+"] "+MAGIC_LABEL[M.benefits[i].kind]}).join("; "),tier:"",mode:"normal"});
+    suggestName();
+  }
+  function suggestName(){
+    var base=(M.base||(M.type==="clothing"?"Garment":M.type==="accessory"?"Trinket":"Item")).trim();
+    var first=M.benefits[0], flav=first?(first.kind==="stat"?G_STATNAME[first.stat]:first.kind==="skill"||first.kind==="passive"?(first.skill||"Skill"):first.kind==="spell"?(first.spell||"Spells"):first.kind==="resist"?"Warding":first.kind==="dr"?"Toughness":first.kind==="external"?(/Restore/.test(first.which)?"Restoration":"Recovery"):first.kind==="unique"?"Mystery":"Fortune"):"";
+    M.name=(["Gold","Platinum","Legendary","Celestial"].indexOf(M.tier)>=0?"Enchanted ":"")+base+(flav?" of "+flav:"");
+  }
+  function effectText(){
+    return M.benefits.map(function(b){
+      if(b.kind==="stat")return "+"+b.n+" "+G_STATNAME[b.stat];
+      if(b.kind==="skill")return "+"+b.n+" "+(b.skill||"(choose a skill)");
+      if(b.kind==="passive")return "+"+b.n+" "+(b.skill||"(choose a Passive skill)")+" (Rank = Floor when found)";
+      if(b.kind==="dr")return "+1 Damage Resistance";
+      if(b.kind==="resist")return "Resistance to "+(b.dmg||"an uncommon damage type")+" damage";
+      if(b.kind==="external")return "Once per Floor: "+b.which;
+      if(b.kind==="spell")return "Inherent Spell: "+(b.spell||"(choose a spell)")+", Rank "+b.n+", no Mana, Cooldown "+(2*b.n)+" hours";
+      if(b.kind==="buff")return "Buff: "+(b.text||"(describe it)");
+      if(b.kind==="unique")return "Something Unique ("+b.uniq+(b.power>1?", "+b.power+"\u00d7 as powerful":"")+"): "+(b.text||"(describe it)");
+      return "";
+    }).join(". ")+".";
+  }
+  function row(b,i){
+    var h='<div class="mrow"><div style="display:flex;gap:6px;align-items:center"><b style="flex:1">'+esc(MAGIC_LABEL[b.kind])+'</b>'
+      +(b.kind!=="unique"?'<button class="btn sm" data-mre="'+i+'">Reroll</button>':'')+'</div>';
+    if(b.kind==="stat")h+='<div style="display:flex;gap:6px;align-items:center;margin-top:4px">+'+b.n+' <select data-mf="stat" data-i="'+i+'">'+["str","int","con","dex","cha"].map(function(k){return '<option value="'+k+'"'+(b.stat===k?" selected":"")+'>'+G_STATNAME[k]+'</option>'}).join("")+'</select>'
+      +(/Platinum|Legendary|Celestial/.test(M.tier)?'<span class="hint">'+({Platinum:"5%",Legendary:"10%",Celestial:"20%"})[M.tier]+' of your '+G_STATNAME[b.stat]+', rounded down (at least 1)</span>':'')+'</div>';
+    if(b.kind==="skill"||b.kind==="passive"){var pool=b.kind==="passive"?passives:skills;
+      h+='<div style="display:flex;gap:6px;align-items:center;margin-top:4px">+'+b.n+' <select data-mf="skill" data-i="'+i+'"><option value="">Choose'+(b.kind==="passive"?" a Passive skill":" a skill")+'\u2026</option>'
+        +pool.map(function(s){return '<option'+(b.skill===s.name?" selected":"")+'>'+esc(s.name)+'</option>'}).join("")+'</select></div>'
+        +(b.kind==="passive"?'<div class="hint">Rank equal to the Floor (Floor '+floor+'). A crawler without the skill gains it at that Rank.</div>':'<div class="hint">A crawler without the skill gains it at that Rank.</div>');}
+    if(b.kind==="spell")h+='<div style="display:flex;gap:6px;align-items:center;margin-top:4px"><select data-mf="spell" data-i="'+i+'"><option value="">Choose a spell\u2026</option>'
+      +spells.map(function(s){return '<option'+(b.spell===s.name?" selected":"")+'>'+esc(s.name)+'</option>'}).join("")+'</select> at Rank '+b.n+'</div><div class="hint">No Mana; Cooldown usually 2 hours per Rank ('+(2*b.n)+' hours).</div>';
+    if(b.kind==="resist")h+='<input type="text" list="dmgtypes" data-mf="dmg" data-i="'+i+'" value="'+esc(b.dmg)+'" style="margin-top:4px">';
+    if(b.kind==="external")h+='<select data-mf="which" data-i="'+i+'" style="margin-top:4px">'+["Recovery (full Health)","Restore (full Mana)"].map(function(x){return '<option'+(b.which===x?" selected":"")+'>'+x+'</option>'}).join("")+'</select>';
+    if(b.kind==="buff")h+='<input type="text" data-mf="text" data-i="'+i+'" value="'+esc(b.text)+'" placeholder="Describe the buff (GM\u2019s call)" style="margin-top:4px">';
+    if(b.kind==="unique")h+='<div class="hint" style="margin-top:4px">Rolled '+b.uroll+': <b>'+esc(b.uniq)+'</b>'+(b.power>1?'. It cut '+(b.power-1)+' roll'+(b.power>2?"s":"")+' short, so make it about '+b.power+'\u00d7 as powerful.':'.')+'</div>'
+      +'<input type="text" data-mf="text" data-i="'+i+'" value="'+esc(b.text)+'" placeholder="Describe what it does" style="margin-top:4px">';
+    return h+'</div>';
+  }
+  function body(){
+    var h='<h2 style="font-size:20px;margin-bottom:4px">Roll a magic item</h2>'
+      +'<p class="hint" style="margin:0 0 10px">Using the Core Rulebook\u2019s Randomized Magic Items rules (Tables 38\u201342). Silver items get 1 roll, Gold 2, Platinum 3, Legendary 4, Celestial 5. Bronze items are mundane.</p>'
+      +'<div class="grid g2"><label class="f"><span class="lab">Rarity</span><select id="mTier">'+Object.keys(MAGIC_ROLLS).map(function(t){return '<option'+(M.tier===t?" selected":"")+'>'+t+'</option>'}).join("")+'</select></label>'
+      +'<label class="f"><span class="lab">Item type</span><select id="mType"><option value="">Roll or choose\u2026</option>'+MAGIC_TYPES.map(function(t){return '<option value="'+t[0]+'"'+(M.type===t[0]?" selected":"")+'>'+t[1]+'</option>'}).join("")+'</select></label></div>'
+      +'<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn sm" id="mTypeRoll">Roll the type (d6)</button></div>'
+      +(M.type?'<div class="grid g2" style="margin-top:8px"><label class="f"><span class="lab">What is it?</span><input type="text" id="mBase" value="'+esc(M.base)+'" placeholder="'+(M.type==="clothing"?"Ball cap, trench coat\u2026":M.type==="accessory"?"Signet ring, belt buckle\u2026":"Frying pan, crowbar\u2026")+'"></label>'
+        +'<label class="f"><span class="lab">Gear slot</span><select id="mSlot"><option value="">\u2014</option>'+EQUIP_KEYS.filter(function(k){return !/^acc[1-9]/.test(k[0])}).map(function(k){var lab=/^acc/.test(k[0])?"Accessory":k[1];return '<option value="'+lab+'"'+(M.slot===lab?" selected":"")+'>'+lab+'</option>'}).join("")+'</select></label></div>'
+        +'<button class="btn pri" id="mRoll" style="margin-top:8px">'+(M.benefits.length?"Roll its benefits again":"Roll its "+MAGIC_ROLLS[M.tier]+" benefit"+(MAGIC_ROLLS[M.tier]>1?"s":""))+'</button>':'');
+    if(M.benefits.length){
+      h+='<div style="margin-top:10px">'+M.benefits.map(row).join("")+'</div>'
+        +'<label class="f" style="margin-top:8px"><span class="lab">Name</span><input type="text" id="mName" value="'+esc(M.name)+'"></label>'
+        +'<div class="hint" style="margin-top:6px"><b>It reads:</b> '+esc(effectText())+'</div>';
+    }
+    h+='<datalist id="dmgtypes">'+UNCOMMON_DMG.map(function(x){return '<option value="'+x+'">'}).join("")+'</datalist>'
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="mNo">Cancel</button>'
+      +'<button class="btn pri" id="mYes"'+(M.benefits.length?'':' disabled')+'>'+(opts.yesLabel||"Add it to the Inventory")+'</button></div>';
+    return h;
+  }
+  function redraw(){openModal(body());wire()}
+  function wire(){
+    $("mNo").addEventListener("click",function(){closeModal();if(opts.onCancel)opts.onCancel()});
+    $("mTier").addEventListener("change",function(){M.tier=$("mTier").value;M.benefits=[];redraw()});
+    $("mType").addEventListener("change",function(){M.type=$("mType").value;M.benefits=[];M.slot="";redraw()});
+    $("mTypeRoll").addEventListener("click",function(){var r=rnd(6);M.type=r<=2?"weapon":r<=4?"clothing":"accessory";M.benefits=[];M.slot="";
+      recordRoll(c,{label:"Magic item type (Table 38)",total:r,nat:0,detail:"d6 ["+r+"] \u2192 "+MAGIC_TYPES.find(function(t){return t[0]===M.type})[1],tier:"",mode:"normal"});redraw()});
+    if($("mBase"))$("mBase").addEventListener("input",function(){M.base=$("mBase").value;if(M.benefits.length){suggestName();var n=$("mName");if(n)n.value=M.name}});
+    if($("mSlot"))$("mSlot").addEventListener("change",function(){M.slot=$("mSlot").value});
+    if($("mRoll"))$("mRoll").addEventListener("click",function(){rollAll();redraw()});
+    if($("mName"))$("mName").addEventListener("input",function(){M.name=$("mName").value;M.named=true});
+    $("modalBox").querySelectorAll("[data-mre]").forEach(function(btn){btn.addEventListener("click",function(){
+      var i=+btn.dataset.mre, r=rnd(6), kind=MAGIC_TABLE[M.type][r-1];
+      M.benefits[i]=newBenefit(kind,i,MAGIC_ROLLS[M.tier]); if(kind==="unique")M.benefits=M.benefits.slice(0,i+1);
+      if(!M.named)suggestName(); redraw();
+    })});
+    $("modalBox").querySelectorAll("[data-mf]").forEach(function(el){el.addEventListener(el.tagName==="SELECT"?"change":"input",function(){
+      var b=M.benefits[+el.dataset.i], f=el.dataset.mf; b[f]=el.value;
+      if(f==="stat"&&/Platinum|Legendary|Celestial/.test(M.tier)){b.n=statX(M.tier,c,b.stat);redraw();return}
+      if(!M.named&&(f==="stat"||f==="skill"||f==="spell")){suggestName();var n=$("mName");if(n)n.value=M.name}
+      var eff=$("modalBox").querySelector(".hint b"); if(eff&&eff.parentNode)eff.parentNode.lastChild.textContent=" "+effectText();
+    })});
+    $("mYes").addEventListener("click",function(){
+      var miss=M.benefits.some(function(b){return ((b.kind==="skill"||b.kind==="passive")&&!b.skill)||(b.kind==="spell"&&!b.spell)});
+      if(miss){toast("Choose the skill or spell for each benefit first.","warn");return}
+      var it=newItem({name:(M.name||"Magic Item").trim(),category:"Gear",rarity:M.tier,slot:M.slot,notes:effectText(),magic:true});
+      closeModal(); done(it);
+    });
+  }
+  redraw();
+}
+
 /* ---- opening a loot box ---- */
+/* Random loot by box rarity. The rulebook lists what each tier holds and its
+   gold ("and almost always ..."); it doesn't give a count, so that's 1d3 by
+   default. Bronze draws only Bronze and Celestial only Celestial; the tiers in
+   between mostly draw their own tier, with some from the tier below. */
+var BOX_GOLD={Bronze:["1d10",1],Silver:["1d10",100],Gold:["1d6",1000],Platinum:["2d6",1000],Legendary:["1d10",10000]};
+function lootPools(tier){
+  var i=RARITY.indexOf(tier), same=S.library.items.filter(function(x){return x.rarity===tier}), lower=[];
+  if(i>0&&tier!=="Celestial")lower=S.library.items.filter(function(x){return x.rarity===RARITY[i-1]});
+  return {same:same,lower:lower};
+}
 function openBox(c,ix){
   var box=c.boxes[ix]; if(!box)return;
-  var lines=[{name:/earth/i.test((box.name||"")+" "+(box.why||""))?"Earth Hobby Potion":"",qty:1}], rolled="";
+  var earth=/earth/i.test((box.name||"")+" "+(box.why||""));
+  var lines=[{name:earth?"Earth Hobby Potion":"",qty:1}], rolled="", gold=null, goldNote="", countExpr="1d3", goldOn=true, made=[];
   function body(){
     return '<h2 style="font-size:20px;margin-bottom:6px">Open the '+esc([box.rarity,box.name||"loot box"].filter(Boolean).join(" "))+'</h2>'
       +'<p class="hint" style="margin:0 0 10px">Record what came out. Everything goes into your Inventory. If your GM rolls on a table, the dice are below.</p>'
       +lines.map(function(l,i){return '<div style="display:flex;gap:6px;margin-bottom:6px"><input type="text" list="itemnames" data-bl="'+i+'" value="'+esc(l.name)+'" placeholder="Item name, or pick from your Library" style="flex:1">'
         +'<input type="number" data-bq="'+i+'" value="'+esc(l.qty)+'" min="1" style="width:64px"></div>'}).join("")
       +'<button class="btn sm" id="boxMore">Add another item</button>'
+      +(earth?'<p class="hint" style="margin:10px 0 0">Earth Boxes hold trinkets and their guaranteed potion rather than regular loot.</p>'
+        :!box.rarity?'<p class="hint" style="margin:10px 0 0">Set this box\u2019s rarity on its row to roll random loot for it.</p>'
+        :'<div class="lootroll"><b>Random '+esc(box.rarity)+' loot</b> <span class="hint">'+(box.rarity==="Bronze"?"Bronze items only":box.rarity==="Celestial"?"Celestial items only":"mostly "+esc(box.rarity)+", some "+esc(RARITY[RARITY.indexOf(box.rarity)-1])) +'</span>'
+          +'<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="hint">How many items</span><input type="text" id="boxCount" value="'+esc(countExpr)+'" style="width:70px">'
+          +'<button class="btn sm pri" id="boxRandom">Roll random loot</button></div>'
+          +(gold!=null?'<label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="boxGoldOn" style="width:auto"'+(goldOn?" checked":"")+'> <span><b>'+gold.toLocaleString()+' Gold</b> <span class="hint">('+esc(goldNote)+')</span></span></label>':'')
+          +(MAGIC_ROLLS[box.rarity]?'<div style="margin-top:8px"><button class="btn sm" id="boxMagic">Roll a magic item</button> <span class="hint">'+MAGIC_ROLLS[box.rarity]+' benefit roll'+(MAGIC_ROLLS[box.rarity]>1?"s":"")+' at '+esc(box.rarity)+'</span></div>':'')
+          +(made.length?'<div style="margin-top:6px">'+made.map(function(m,i){return '<div class="mrow" style="display:flex;gap:6px;align-items:flex-start"><span style="flex:1"><b>'+esc(m.name)+'</b><br><span class="hint">'+esc(m.notes)+'</span></span><button class="x" data-unmake="'+i+'">\u00d7</button></div>'}).join("")+'</div>':'')
+          +'</div>')
       +'<div style="display:flex;gap:6px;align-items:center;margin-top:10px"><span class="hint">Roll</span><input type="text" id="boxDie" value="1d20" style="width:80px"><button class="btn sm" id="boxRoll">Roll</button>'+(rolled?'<span>'+esc(rolled)+'</span>':'')+'</div>'
       +'<datalist id="itemnames">'+S.library.items.map(function(it){return '<option value="'+esc(it.name)+'">'}).join("")+'</datalist>'
       +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="boxNo">Not yet</button><button class="btn pri" id="boxYes">Open it</button></div>';
@@ -5174,19 +5533,46 @@ function openBox(c,ix){
     $("modalBox").addEventListener("input",function(e){var t=e.target;
       if(t.dataset.bl!=null)lines[+t.dataset.bl].name=t.value; if(t.dataset.bq!=null)lines[+t.dataset.bq].qty=t.value});
     $("boxMore").addEventListener("click",function(){lines.push({name:"",qty:1});openModal(body());wire()});
+    if($("boxCount"))$("boxCount").addEventListener("input",function(){countExpr=$("boxCount").value});
+    if($("boxGoldOn"))$("boxGoldOn").addEventListener("change",function(){goldOn=$("boxGoldOn").checked});
+    if($("boxMagic"))$("boxMagic").addEventListener("click",function(){
+      magicItemWindow(c,{rarity:box.rarity,yesLabel:"Add it to this box",onCancel:function(){openModal(body());wire()}},function(mi){made.push(mi);openModal(body());wire()});
+    });
+    $("modalBox").querySelectorAll("[data-unmake]").forEach(function(b){b.addEventListener("click",function(){made.splice(+b.dataset.unmake,1);openModal(body());wire()})});
+    if($("boxRandom"))$("boxRandom").addEventListener("click",function(){
+      var P=lootPools(box.rarity);
+      if(!P.same.length&&!P.lower.length){toast("Your Library has no "+box.rarity+" items to draw from yet. Import a book, or add some items with that rarity.","warn");return}
+      var cx=rollExpr(countExpr)||rollExpr("1d3"), n=Math.max(1,Math.min(20,cx.total)), got={};
+      for(var k=0;k<n;k++){
+        var pool=(P.lower.length&&(!P.same.length||rnd(10)<=3))?P.lower:P.same;
+        var pick=pool[rnd(pool.length)-1]; got[pick.name]=(got[pick.name]||0)+1;
+      }
+      lines=lines.filter(function(l){return (l.name||"").trim()}).concat(Object.keys(got).map(function(nm){return {name:nm,qty:got[nm]}}));
+      var gd=BOX_GOLD[box.rarity];
+      if(gd){var gr=rollExpr(gd[0]);gold=gr.total*gd[1];goldNote=gd[0]+(gd[1]>1?" \u00d7"+gd[1].toLocaleString():"")+": "+gr.text;goldOn=true}
+      else{gold=null;goldNote=""}
+      recordRoll(c,{label:"Random loot, "+box.rarity+" box",total:n,nat:0,detail:Object.keys(got).map(function(nm){return nm+(got[nm]>1?" \u00d7"+got[nm]:"")}).join(", ")+(gold!=null?" \u00b7 "+gold.toLocaleString()+" Gold":""),tier:"",mode:"normal"});
+      openModal(body()); wire();
+    });
     $("boxRoll").addEventListener("click",function(){var r=rollExpr($("boxDie").value);if(!r){toast("Try something like 1d20.","warn");return}
       rolled=r.total+" ("+r.text+")"; recordRoll(c,{label:"Loot box table roll",total:r.total,nat:0,detail:r.text,tier:"",mode:"normal"}); openModal(body()); wire()});
     $("boxYes").addEventListener("click",function(){
       var got=lines.filter(function(l){return (l.name||"").trim()});
       got.forEach(function(l){
+        if(l.isGold)return;
         var q=Math.max(1,parseInt(l.qty,10)||1), lib=gLib("items",l.name.trim());
         var same=c.inventory.find(function(x){return x.where==="inv"&&gNorm(x.name)===gNorm(l.name)});
         if(same)same.qty=(parseInt(same.qty,10)||1)+q; else c.inventory.push(lib?itemFromLib(lib,q):newItem({name:l.name.trim(),qty:q}));
       });
       var label=[box.rarity,box.name||"loot box"].filter(Boolean).join(" ");
+      made.forEach(function(mi){c.inventory.push(mi);got.push({name:mi.name,qty:1})});
+      if(gold!=null&&goldOn){c.gold=String((parseInt(c.gold,10)||0)+gold);got.push({name:gold.toLocaleString()+" Gold",qty:1,isGold:true})}
       c.boxes.splice(ix,1); syncInv(c); save(); closeModal(); renderInv();
       recordUse(c,"Opened a "+label,got.length?got.map(function(l){return l.name.trim()+(parseInt(l.qty,10)>1?" \u00d7"+l.qty:"")}).join(", "):"nothing recorded");
-      toast("Opened the "+label+(got.length?": "+got.length+" item"+(got.length===1?"":"s")+" added to your Inventory":"")+".","good");
+      var spellish=got.some(function(l){return /spell ?books?\b|magic tomes?\b|\btomes?\b|spell scrolls?\b/i.test(l.name)});
+      var nItems=got.filter(function(l){return !l.isGold}).length;
+      toast("Opened the "+label+(nItems?": "+nItems+" item"+(nItems===1?"":"s")+" added to your Inventory":"")+(gold!=null&&goldOn?(nItems?", plus ":": ")+gold.toLocaleString()+" Gold":"")+"."
+        +(spellish?" Give each spellbook or scroll its spell with \u201cChoose its spell\u201d on its card, or when you use it.":""),"good");
     });
   }
   openModal(body()); wire();
@@ -5452,7 +5838,8 @@ function renderLib(){
       +(e.homebrew?'<span class="chip hb">homebrew</span>':'')
       +(meta.length?'<div class="meta">'+esc(meta.join(" · "))+'</div>':'')
       +(e.description?'<div class="desc">'+esc(e.description)+'</div>':'')
-      +'</div><div style="display:flex;gap:5px">'
+      +'</div><div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">'
+      +(libKind==="spells"?'<button class="btn sm" data-l="astome" title="Put a spellbook of this spell in the active crawler\u2019s Inventory">As spellbook</button><button class="btn sm" data-l="asscroll" title="Put a scroll of this spell in the active crawler\u2019s Inventory">As scroll</button>':'')
       +'<button class="btn sm" data-l="edit">Edit</button>'
       +'<button class="btn sm dgr" data-l="del">×</button></div></div>';
   }).join("");
@@ -5468,6 +5855,7 @@ $("libSearch").addEventListener("input",function(){libQuery=this.value;renderLib
 $("libList").addEventListener("click",function(e){
   var item=e.target.closest(".libitem"); if(!item)return;
   var id=item.dataset.id, act=e.target.dataset.l;
+  if(act==="astome"||act==="asscroll"){var spx=S.library.spells.find(function(x){return x.id===id});if(spx)giveSpellAs(spx,act==="astome"?"tome":"scroll");return}
   if(act==="del"){
     var ent=S.library[libKind].find(function(x){return x.id===id});
     ask("Remove "+((ent&&ent.name)||"this entry")+" from your library?","Remove",function(){
