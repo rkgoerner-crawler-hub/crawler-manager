@@ -6,22 +6,41 @@
 <title>Crawler Manager</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;600;700;800&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --stone:#e9ebe4; --panel:#f4f5f0; --panel2:#fbfbf9; --sunk:#dfe2d9;
-  --mortar:#c6cabd; --hair:#d7dad1;
-  --amber:#8a4f08; --amber-dim:#a97a2c;
-  --teal:#1f5b56; --teal-dim:#46736e;
-  --ink:#21241f; --dim:#5d6358; --faint:#8b9186;
-  --rust:#9e3b1f;
-  --fd:"Barlow Condensed",Impact,sans-serif;
-  --fb:"IBM Plex Sans",system-ui,sans-serif;
-  --fm:"IBM Plex Mono",ui-monospace,monospace;
+  /* Inspired by the series' covers: neon pink, electric blue and yellow, with
+     retro-game type. Light by day, dark at night, following the device. */
+  color-scheme:light dark;
+  --stone:#fff3f9; --panel:#ffffff; --panel2:#fff8fc; --sunk:#f7e2ee;
+  --mortar:#e8c2d8; --hair:#f2dbe8;
+  --amber:#c0116d; --amber-dim:#d94b94;
+  --teal:#086a80; --teal-dim:#3a93a7;
+  --ink:#1c1230; --dim:#56486c; --faint:#736887;
+  --rust:#c03a0c;
+  --head:#1c1230; --glow:transparent; --onaccent:#ffffff;
+  --fd:"Bungee",Impact,"Arial Black",sans-serif;
+  --fb:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --fm:"Silkscreen","Courier New",ui-monospace,monospace;
+  --fl:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --stone:#0e0b16; --panel:#17122a; --panel2:#1f1835; --sunk:#0a0711;
+    --mortar:#3d3160; --hair:#2b2347;
+    --amber:#ff3ea5; --amber-dim:#c42b7c;
+    --teal:#2ee6ff; --teal-dim:#1ba5bb;
+    --ink:#f5f0fd; --dim:#c3b8dc; --faint:#8f84ad;
+    --rust:#ff7a45;
+    --head:#ffe14d; --glow:rgba(255,62,165,.55); --onaccent:#170b20;
+  }
+  .r-bronze{color:#e0a46c}.r-silver{color:#c9d2da}.r-gold{color:#ffd54a}.r-platinum{color:#7fe3e3}.r-legendary{color:#d79bff}.r-celestial{color:#7fb4ff}
+  .toast.good,.toast.warn{color:#170b20}
+  input,select,textarea{background:var(--sunk);color:var(--ink);border-color:var(--mortar)}
 }
 *,*::before,*::after{box-sizing:border-box}
 body{margin:0;background:var(--stone);color:var(--ink);font-family:var(--fb);font-size:15px;line-height:1.5}
-h1,h2,h3{font-family:var(--fd);text-transform:uppercase;letter-spacing:.02em;margin:0}
+h1,h2,h3{font-family:var(--fd);font-weight:400;text-transform:uppercase;letter-spacing:.03em;margin:0;color:var(--head);text-shadow:0 0 12px var(--glow)}
 button{font-family:var(--fm);cursor:pointer}
 input,select,textarea{font-family:var(--fb)}
 
@@ -29,7 +48,7 @@ input,select,textarea{font-family:var(--fb)}
 .top{background:var(--panel);border-bottom:1px solid var(--mortar)}
 .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
 .brand{display:flex;align-items:baseline;gap:12px;padding:18px 0 12px;flex-wrap:wrap}
-.brand h1{font-size:30px;font-weight:700;line-height:.9}
+.brand h1{font-size:28px;line-height:1;text-shadow:2px 2px 0 var(--amber),0 0 18px var(--glow)}
 .brand .tag{font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber)}
 .brand .save{margin-left:auto;font-family:var(--fm);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-dim)}
 .brand .save[data-s="err"]{color:var(--rust)}
@@ -78,8 +97,8 @@ select{cursor:pointer}
 .btn{border:1px solid var(--mortar);background:var(--panel);color:var(--dim);
   font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:7px 13px;border-radius:3px}
 .btn:hover{color:var(--amber);border-color:var(--amber-dim)}
-.btn.pri{background:var(--amber);border-color:var(--amber);color:#f7f7f4;font-weight:600}
-.btn.pri:hover{color:#fff;background:#7a4507}
+.btn.pri{background:var(--amber);border-color:var(--amber);color:var(--onaccent);font-weight:700}
+.btn.pri:hover{color:var(--onaccent);background:var(--amber-dim);border-color:var(--amber-dim)}
 .btn.dgr:hover{color:var(--rust);border-color:var(--rust)}
 .btn.sm{padding:4px 9px;font-size:10px}
 
@@ -138,7 +157,7 @@ select{cursor:pointer}
 .pill{display:inline-flex;border:1px solid var(--mortar);border-radius:3px;overflow:hidden}
 .pill button{border:none;background:transparent;color:var(--dim);padding:6px 14px;font-size:11px;
   letter-spacing:.1em;text-transform:uppercase}
-.pill button[aria-pressed="true"]{background:var(--amber);color:#f7f7f4;font-weight:600}
+.pill button[aria-pressed="true"]{background:var(--amber);color:var(--onaccent);font-weight:700}
 
 .toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:80;
   display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
@@ -179,6 +198,20 @@ select{cursor:pointer}
   .g5,.g4,.g3,.g2{grid-template-columns:1fr}
   .hb button{height:46px}
   .hb .p{display:none}
+  /* wide tables scroll sideways inside their box, with the name pinned on the
+     left, instead of squeezing every column into a phone screen */
+  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .tbl>.tr{width:max-content;min-width:100%}
+  .tbl>.tr>:first-child{position:sticky;left:0;z-index:1;background:var(--panel2);box-shadow:6px 0 6px -6px rgba(0,0,0,.35)}
+  .tbl>.skinfo{position:sticky;left:0;max-width:calc(100vw - 40px)}
+  .pill{flex-wrap:wrap}
+  .btn.sm{min-height:32px;min-width:32px}
+  .x{min-width:32px;min-height:32px}
+  .tblhint{display:block!important}
+  /* room at the bottom so anything can be scrolled clear of the Dice button */
+  body{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  #diceFab{padding:8px 14px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  #dicePanel{right:8px;width:calc(100vw - 16px);bottom:calc(60px + env(safe-area-inset-bottom,0px))}
 }
 .skinfo{grid-column:1/-1;background:var(--panel2);border:1px solid var(--hair);border-radius:8px;padding:10px 12px;margin:4px 0 8px;font-size:13px}
 .mention{border-top:1px solid var(--hair);padding:5px 0}.mention summary{cursor:pointer}
@@ -200,6 +233,24 @@ select{cursor:pointer}
 .giftbox{margin-top:10px;padding:8px 12px;border:1px solid var(--teal);border-radius:8px}
 .lootroll{margin-top:10px;padding:8px 10px;border:1px solid var(--hair);border-radius:8px;background:var(--panel2)}
 .mrow{border-top:1px solid var(--hair);padding:6px 0}
+/* type roles: pixel font for tabs, buttons and tags (the HUD feel); bold
+   readable labels; chunky arcade numbers for values and roll totals */
+.lab,.th,.statcard .t,.hb .p,.libitem .meta,.chip,.pcard .sub,.kv span,.rcard .sub,.shareTog{font-family:var(--fl);font-weight:800;letter-spacing:.06em}
+.lab{font-size:11px}.th{font-size:10.5px}.statcard .t{font-size:10px}.chip{font-size:10px}
+.out,.mono,.statcard input,.hb .v,.kv b,.rolltot{font-family:var(--fd);font-weight:400;letter-spacing:.02em}
+.rolltot{color:var(--head);text-shadow:0 0 8px var(--glow)}
+/* every \u00d7 button, not just the ones inside table rows */
+.x{color:var(--faint);border:none;background:none;font-size:15px;line-height:1;padding:2px 5px;border-radius:4px;cursor:pointer}
+.x:hover,.x:focus-visible{color:var(--rust);background:var(--sunk)}
+.rcard .ident{color:var(--amber);font-weight:700;margin-top:2px}
+.dbnow{margin-top:8px;padding:8px 10px;border:1px solid var(--rust);border-radius:8px;font-size:13px;line-height:1.45}
+.mobdb{margin-top:8px}.dbchip{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:3px 0;border-top:1px solid var(--hair)}
+.camrow{margin-top:8px;padding:8px;border:1px dashed var(--mortar);border-radius:8px;display:flex;flex-direction:column;gap:6px}
+.camrow.on{border:1px solid var(--amber);box-shadow:0 0 10px var(--glow)}
+.poplog{max-height:260px;overflow:auto;margin-top:6px;font-size:13px;line-height:1.5}.poplog .up{color:var(--teal)}.poplog .down{color:var(--rust)}
+.comp{margin-top:10px}.catk{display:flex;gap:6px;align-items:center;padding:4px 0;border-top:1px solid var(--hair);flex-wrap:wrap}
+.cstats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:8px}
+.cstats .f{min-width:0}.cstats input{width:100%;min-width:0;text-align:center}.cstats .btn{margin-top:4px;width:100%}
 </style>
 </head>
 <body>
@@ -1301,7 +1352,7 @@ classes:[
   "prereq": "Dagger or Stealth Skill at Rank 5+",
   "statBonus": "+3 Dexterity, +2 Intelligence, +3 Charisma",
   "skillBonus": "+2 Dagger, +1 Throwing, +1 Stealth, +1 Survival",
-  "abilities": "Everyone said you wouldn’t last a week. The instructors, the other crawlers, the thing with wings that could swallow you whole and decided, inexplicably, to keep you. You’re still here. So is your terrible taste in men.\n\n[8 pt] +3 Dexterity, +2 Intelligence, +3 Charisma.\n[10 pt] +2 Dagger, +1 Throwing, +1 Stealth, +1 Survival.\n[3 pt] Underestimated: Advantage on your first Attack Skill Check each fight against any foe of higher Level than you.\n[3 pt] Main Character Energy: once per floor, when damage would drop you to 0% Health Bar, you stay at 1 slot instead. Plot armor.\n[3 pt] Bonded Beast: a surly winged creature chose you and won’t explain why. It’s a Pet, and it reminds you daily that it could eat you.\n[3 pt] Enemies to Lovers: once per day, when a Mob (not a Boss) hits you, make a Cha-Opposed Persuasion check. On a success it won’t attack you for the rest of the fight, and you can’t bring yourself to attack it either. It’s complicated.\n[2 pt] Only One Bed: when you take a Short Rest in cramped quarters with an ally, you both recover 1 extra Health Bar slot.\n[3 pt] Your Power Awakens: on entering the Sixth Floor, choose one and write it in your Floor 6 subclass slot:\n  • Storm-Touched: once per fight, call down lightning at a target within 30ft for 3d8 + Int Lightning damage. It costs you 1 Health Bar slot.\n  • Remade: +2 Constitution, Resistance to Necrotic damage, and you recover 1 Health Bar slot at the end of every fight.\n\nBuild: 35 of 35 points (30 base + 5 from drawbacks).",
+  "abilities": "Everyone said you wouldn’t last a week. The instructors, the other crawlers, the thing with wings that could swallow you whole and decided, inexplicably, to keep you. You’re still here. So is your terrible taste in men.\n\n[8 pt] +3 Dexterity, +2 Intelligence, +3 Charisma.\n[10 pt] +2 Dagger, +1 Throwing, +1 Stealth, +1 Survival.\n[3 pt] Underestimated: Advantage on your first Attack Skill Check each fight against any foe of higher Level than you.\n[3 pt] Main Character Energy: once per floor, when damage would drop you to 0% Health Bar, you stay at 1 slot instead. Plot armor.\n[3 pt] Bonded Beast: a surly winged creature chose you and won’t explain why. It’s a Pet that starts Bonded, and it reminds you daily that it could eat you.\n[3 pt] Enemies to Lovers: once per day, when a Mob (not a Boss) hits you, make a Cha-Opposed Persuasion check. On a success it won’t attack you for the rest of the fight, and you can’t bring yourself to attack it either. It’s complicated.\n[2 pt] Only One Bed: when you take a Short Rest in cramped quarters with an ally, you both recover 1 extra Health Bar slot.\n[3 pt] Your Power Awakens: on entering the Sixth Floor, choose one and write it in your Floor 6 subclass slot:\n  • Storm-Touched: once per fight, call down lightning at a target within 30ft for 3d8 + Int Lightning damage. It costs you 1 Health Bar slot.\n  • Remade: +2 Constitution, Resistance to Necrotic damage, and you recover 1 Health Bar slot at the end of every fight.\n\nBuild: 35 of 35 points (30 base + 5 from drawbacks).",
   "drawbacks": "[+2 pt] −2 Strength, −2 Constitution. Everyone keeps mentioning how breakable you look.\n[+2 pt] Spice Level: Unhinged: your romance subplot is the most-watched thing on the network, and everyone’s seen the recap. NPCs who recognize you give you Disadvantage on Persuasion and Good First Impression checks for the rest of the scene.\n[+1 pt] Distracted by Wingspan: your first Evade check each fight against a foe with wings or horns has Disadvantage. You know what you like.",
   "page": ""
  },
@@ -1311,7 +1362,7 @@ classes:[
   "prereq": "Handgun or Shotgun Skill at Rank 5+",
   "statBonus": "+3 Dexterity, +2 Constitution, +2 Charisma",
   "skillBonus": "+3 Handgun, +1 Shotgun, +1 Animal Handling, +1 Intimidate",
-  "abilities": "The dungeon has laser turrets, liches, and a god who runs a gift shop. You brought a revolver, a hat and a horse. Somehow, that’s working.\n\n[7 pt] +3 Dexterity, +2 Constitution, +2 Charisma.\n[12 pt] +3 Handgun, +1 Shotgun, +1 Animal Handling, +1 Intimidate.\n[4 pt] Deadeye: once per fight, the world slows down. Make up to three Handgun attacks against different targets as a single Action, each at −2 to hit.\n[3 pt] Quick Draw: once per fight, when a Mob first moves toward you, you can make a Handgun attack as an Interrupt.\n[3 pt] High Noon: once per floor, call out one foe for a duel. Your first Handgun attack against it deals double damage, but you can’t attack anything else until one of you drops.\n[3 pt] Trusty Steed: a horse who’s seen things. It’s a Mount, and it comes when you whistle.\n[2 pt] Enchanted Lasso: you carry the Enchanted Lasso (add it from the Items library). Once per fight, rope a target within 20ft with a Throwing check against its Evade; on a hit it gains the Held Debuff.\n[1 pt] Ricochet: once per fight, bank a shot off a wall to ignore cover.\n[0 pt] Hat Hair: anything you wear on your head becomes a cowboy hat, keeping all its stats, buffs and enchantments. The manager shows which kind in your Head slot.\n\nBuild: 35 of 35 points (30 base + 5 from drawbacks).",
+  "abilities": "The dungeon has laser turrets, liches, and a god who runs a gift shop. You brought a revolver, a hat and a horse. Somehow, that’s working.\n\n[7 pt] +3 Dexterity, +2 Constitution, +2 Charisma.\n[12 pt] +3 Handgun, +1 Shotgun, +1 Animal Handling, +1 Intimidate.\n[4 pt] Deadeye: once per fight, the world slows down. Make up to three Handgun attacks against different targets as a single Action, each at −2 to hit.\n[3 pt] Quick Draw: once per fight, when a Mob first moves toward you, you can make a Handgun attack as an Interrupt.\n[3 pt] High Noon: once per floor, call out one foe for a duel. Your first Handgun attack against it deals double damage, but you can’t attack anything else until one of you drops.\n[3 pt] Trusty Steed: a horse who’s seen things. It’s a Mount that starts Bonded, and it comes when you whistle.\n[2 pt] Enchanted Lasso: you carry the Enchanted Lasso (add it from the Items library). Once per fight, rope a target within 20ft with a Throwing check against its Evade; on a hit it gains the Held Debuff.\n[1 pt] Ricochet: once per fight, bank a shot off a wall to ignore cover.\n[0 pt] Hat Hair: anything you wear on your head becomes a cowboy hat, keeping all its stats, buffs and enchantments. The manager shows which kind in your Head slot.\n\nBuild: 35 of 35 points (30 base + 5 from drawbacks).",
   "drawbacks": "[+2 pt] Wanted Dead or Alive: there’s a bounty on your head. Once per floor, the GM can send a bounty hunter after you.\n[+2 pt] Six-Shooter: after six Handgun attacks, you must spend an Action reloading.\n[+1 pt] Man of Few Words: Disadvantage on Persuasion checks. You say “much obliged” and not a lot else.",
   "page": ""
  },
@@ -1444,6 +1495,16 @@ classes:[
   "abilities": "Before the dungeon, you ran the drill: kilometers down, in heat that cooks lesser crews, with gas in the walls and snakes in the dark. Everyone said you’d die young. The dungeon’s just the deepest dive yet, and you’ve never once come up empty.\n\n[8 pt] +4 Dexterity, +2 Constitution, +2 Strength.\n[12 pt] +2 Climbing, +2 Driving, +1 Detect Trap, +1 Engineering.\n[4 pt] +2 Lykos Hell Drill Spell (in the Spells library).\n[3 pt] Fastest Hands in the Mine: Advantage on Evade checks against traps, explosions and cave-ins.\n[2 pt] Gas Sense: Advantage on Perception checks to notice traps, gas pockets and unstable ceilings.\n[2 pt] Built for the Deep: Resistance to damage dealt by the environment: heat, falling rock, the works.\n[1 pt] Snake Wrangler: Advantage on attacks against snakes and other burrowing creatures.\n[1 pt] Low-Grav Legs: you jump twice as far as normal.\n\nBuild: 33 of 33 points (30 base + 3 from drawbacks).",
   "drawbacks": "[+1 pt] Low Color: Disadvantage on Persuasion and Good First Impression checks with nobles, officials and anyone who thinks they’re your better.\n[+1 pt] The Quota: you must spend at least an hour digging, mining or salvaging each day, or start the next day with the Fatigued Debuff.\n[+1 pt] Rock-Dust Lungs: Disadvantage on checks to resist poison gas and smoke.",
   "page": ""
+ },
+ {
+  "name": "Anime Protagonist",
+  "classType": "Fighter, Monk",
+  "prereq": "Unarmed Combat or any weapon skill at Rank 5+",
+  "statBonus": "+3 Strength, +3 Constitution, +2 Charisma, +1 Dexterity",
+  "skillBonus": "+3 Unarmed Combat, +1 Taunt, +1 Endurance",
+  "abilities": "You were an ordinary kid with a tragic backstory and suspiciously good hair. Then the dungeon happened, and now every fight has a soundtrack only you can hear.\n\n[9 pt] +3 Strength, +3 Constitution, +2 Charisma, +1 Dexterity.\n[10 pt] +3 Unarmed Combat, +1 Taunt, +1 Endurance.\n[3 pt] Signature Move: name your special attack. Once per fight, shout it to double that attack’s damage dice.\n[3 pt] Power of Friendship: once per day, when an ally within 30ft drops below 30% Health Bar, you get +2 on Attack Skill Checks and damage for the rest of the fight.\n[3 pt] Rival: once per floor, declare a Mob or Boss your rival. You have Advantage on attacks against it until it’s beaten, or escapes, which it will.\n[2 pt] Training Arc: at the end of each floor, add 1 to your Skill Advancement Checks for your combat skills.\n[0 pt] Spiky Hair: your hair spikes up and changes color when you’re emotional. You are always emotional.\n[3 pt] Upon entering the Sixth Floor, choose your path and write it in your Floor 6 subclass slot:\n  • Soulblade Reaper: Your weapon holds a sentient spirit with its own name and personality, played by the GM. Track a Bond with it from −3 to 3 in your subclass Details, starting at 0. Naming it, talking to it and honoring its wishes raise the Bond; ignoring it or using another weapon in front of it lower it. Once per fight, call its name to release it: 1d8 extra damage and 10ft reach for the rest of the fight, in an element you choose. At Bond 3 the release adds another 1d8. While the Bond is negative, releasing it takes a Charisma check, and at −3 it refuses.\n  • Shadow-Clone Shinobi: Once per fight, split into 1d4 shadow clones. Each has 1 Health Bar slot, attacks with your Unarmed Combat at a penalty of 2, and vanishes when hit. You have Advantage on Stealth checks. A beast spirit lives inside you: once per day, unleash it for 3 rounds of a 2-point bonus on Attack Skill Checks and Evade, plus a 1d8 claw strike, then you gain the Fatigued Debuff.\n  • Cursed-Fruit Corsair: You ate a cursed fruit. When you take this path, roll a random elemental spell; you know it at Rank 10. From then on you can only use spells of that element, but you have Advantage on Spell Checks with them. You sink like a stone in water.\n  • Golden Rage Warrior: +15 Magic Missile Spell (your ki blast). Once per day, at 50% Health Bar or less, your hair turns gold: a 2-point bonus on Attack Skill Checks and 1d6 extra damage for the rest of the fight, then you gain the Fatigued Debuff. Your Charisma can never go above 5; anything past that is lost.\n\nBuild: 33 of 33 points (30 base + 3 from drawbacks).",
+  "drawbacks": "[+1 pt] Screams Attack Names: Disadvantage on Stealth checks in combat.\n[+2 pt] Mid-Fight Flashback: once per fight, the GM can trigger a flashback, and you lose your next Action.",
+  "page": ""
  }
 ],
 /* Conditions the Garden State bosses inflict, so players can track them on their sheets */
@@ -1488,7 +1549,7 @@ function hbFingerprint(e){
 /* Earlier shipped versions of built-in entries, by fingerprint. A library
    entry still exactly matching one of these was never edited, so it's safe
    to bring up to date; anything edited by hand is left alone. */
-var HB_PREVIOUS={"classes|improvised missile":["ccb97a56-2963"],"classes|final girl":["e3cdbec0-2061"],"classes|3rd shift waffle house cook":["56866ca4-1874"],"races|orc":["6d6d0c8e-1249"],"classes|emo necromancer":["9aa7a088-5519"]};
+var HB_PREVIOUS={"classes|improvised missile":["ccb97a56-2963"],"classes|final girl":["e3cdbec0-2061"],"classes|3rd shift waffle house cook":["56866ca4-1874"],"races|orc":["6d6d0c8e-1249"],"classes|emo necromancer":["9aa7a088-5519"],"classes|deadeye":["5e4079b1-1833"],"classes|smuterina":["527be08-2199"]};
 function seedDefaults(){
   var changed=false;
   Object.keys(DEFAULT_LIBRARY).forEach(function(kind){
@@ -1552,6 +1613,16 @@ $("tabs").addEventListener("click",function(e){
   var b=e.target.closest("button[data-v]"); if(b)show(b.dataset.v)});
 
 /* ---------------- roster ---------------- */
+/* who a crawler is: race and class (with the latest subclass) once chosen,
+   otherwise their species, and which animal */
+function rosterIdentity(c){
+  var r=c.raceId&&S.library.races.find(function(x){return x.id===c.raceId}), k=c.classId&&S.library.classes.find(function(x){return x.id===c.classId});
+  var race=(r&&r.name)||c.race||"", klass=(k&&k.name)||c.klass||"";
+  var sub=["f12","f9","f6"].map(function(f){return c.subclasses&&String(c.subclasses[f]||"").trim()}).filter(Boolean)[0]||"";
+  if(race||klass)return [race,klass?klass+(sub?" ("+sub+")":""):""].filter(Boolean).join(" \u00b7 ");
+  var who=c.species==="animal"?"animal"+(c.animalKind?" ("+c.animalKind+")":""):"human";
+  return who+((c.floor||1)<3?" \u00b7 race & class at Floor 3":"");
+}
 function renderRoster(){
   var host=$("rosterList");
   if(!S.characters.length){
@@ -1562,8 +1633,8 @@ function renderRoster(){
     var hp=parseInt(c.stats.con,10)? (parseInt(c.stats.con,10)*10):null;
     return '<div class="rcard'+(c.id===S.activeId?" act":"")+'" data-id="'+c.id+'">'
       +'<h3>'+esc(c.name||"Unnamed")+'</h3>'
-      +'<div class="sub">level '+esc(c.level||1)+' · floor '+esc(c.floor||1)
-      +' · '+esc(c.species==="animal"?"animal":"human")+'</div>'
+      +'<div class="sub">level '+esc(c.level||1)+' · floor '+esc(c.floor||1)+'</div>'
+      +'<div class="sub ident">'+esc(rosterIdentity(c))+'</div>'
       +'<div class="sub" style="margin-top:6px;color:var(--teal)">'
       +(hp?("health "+hp+" · "+(10-(c.hbLost||0))+"/10 slots"):"stats not set")+'</div>'
       +'<div style="margin-top:10px;display:flex;gap:6px">'
@@ -3398,6 +3469,7 @@ function renderSheet(){
     +(c.species==="animal"?sfield(c,"animalKind","Entered as (animal)"):"")
     +sfield(c,"viewers","Viewers")+sfield(c,"followers","Followers")
     +'</div></div>';
+  h+=popSectionHtml(c);
 
   var lvl=parseInt(c.level,10)||1, pts=parseInt(c.statPoints,10)||0, fl=c.floor||1;
   var tutorial=fl<3;
@@ -3598,16 +3670,25 @@ function renderSheet(){
   if(!c.debuffs.length){h+='<div class="empty-note">Nothing afflicting you right now.</div>'}
   else{
     h+='<div class="tbl">'
-      +'<div class="tr th" style="grid-template-columns:1fr 70px 1fr 28px">'
-      +'<span>Debuff</span><span>Stacks</span><span>Note / duration</span><span></span></div>';
+      +'<div class="tr th" style="grid-template-columns:1fr 64px 70px 1fr 28px">'
+      +'<span>Debuff</span><span>Stacks</span><span>Rounds left</span><span>Note / duration</span><span></span></div>';
+    var now=[];
     c.debuffs.forEach(function(d,ix){
-      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 70px 1fr 28px">'
+      var mc=debuffMech(d), words=mechWords(mc,parseInt(c.floor,10)||1);
+      h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 64px 70px 1fr 28px">'
         +'<input type="text" data-d="name" value="'+esc(d.name)+'">'
         +'<input type="number" data-d="stacks" value="'+esc(d.stacks||1)+'">'
+        +'<input type="number" data-d="rounds" value="'+esc(d.rounds==null?"":d.rounds)+'" placeholder="\u2014" title="Rounds left; blank means it lasts until cured">'
         +'<input type="text" data-d="note" value="'+esc(d.note||"")+'">'
         +'<button class="x" data-d="del">×</button></div>';
+      if(words.length)now.push('<b>'+esc(d.name)+(stacksOf(d,mc)>1?" \u00d7"+stacksOf(d,mc):"")+':</b> '+esc(words.join(", ")));
     });
     h+='</div>';
+    var wz=c.debuffs.find(function(d){return debuffMech(d).dexOff});
+    if(wz)now.push('<b>Evade:</b> '+(evadeTotal(c)-statMod(c.enh.dex||c.stats.dex))+' without your Dex Mod ('+esc(wz.name)+')');
+    if(now.length)h+='<div class="dbnow"><div class="lab" style="margin-bottom:2px">What they\u2019re doing</div>'+now.map(function(x){return '<div>'+x+'</div>'}).join("")+'</div>';
+    h+='<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button class="btn sm" id="dbTick">End of round</button>'
+      +'<span class="hint">Rolls damage over time and counts down timers. Your GM\u2019s End round does this for you when you\u2019re connected.</span></div>';
   }
   h+='<p class="hint" style="margin-top:6px">Short rest, 2 hours: 5 health bar slots and half your mana. '
     +'Long rest, 8 hours: full health, full mana, and every instance of Fatigued cleared.</p></div>';
@@ -3615,7 +3696,7 @@ function renderSheet(){
   h+='<div class="sec"><div class="bar"><h3>Skills</h3><span class="sp"></span>'
     +'<button class="btn sm" id="skClear">Clear marks</button>'
     +'<button class="btn sm pri" id="skAdd">Add skill</button></div>'
-    +'<div class="tbl" id="skTbl">'
+    +'<p class="hint tblhint" style="display:none;margin:0 0 4px">Swipe the table sideways for more.</p><div class="tbl" id="skTbl">'
     +'<div class="tr th" style="grid-template-columns:1fr 60px 70px 96px 1fr 52px 34px 40px 28px 28px">'
     +'<span>Skill</span><span>Rank</span><span>Stat</span><span>Check</span><span>Notes</span>'
     +'<span>Rank die</span><span>Mark</span><span>Roll</span><span></span><span></span></div>';
@@ -3763,6 +3844,7 @@ function renderSheet(){
     +sarea(c,"levelLog","Level log")+sarea(c,"notes","Notes")
     +'</div></div>';
 
+  h+=companionsSection(c);
   $("sheetBody").innerHTML=h;
 }
 /* ---------------- race & class bonuses applied to the sheet ---------------- */
@@ -3837,7 +3919,47 @@ function gNatural(line){
   var name=nm?nm[1].charAt(0).toUpperCase()+nm[1].slice(1).toLowerCase():(label&&label.length<=30?label:"Natural attack");
   return {name:name,rank:rk,uses:usesM?usesM[1]:"",dice:dm[1],stat:G_STATS[dm[2].toLowerCase()],type:dm[3]||""};
 }
+/* companions a race/class/subclass grants: "It's a Pet", "is your Mount",
+   "Signature Minion". Class-granted pets start Calm (Core Rulebook), unless the
+   text gives an attitude, like "a Friendly ... Mount". */
+function gCompanions(entry,slot){
+  var out=[], stop=false;
+  String(entry&&entry.abilities||"").split(/\n/).forEach(function(line){
+    if(stop)return;
+    if(/Upon entering the (?:Sixth|Ninth|Twelfth) Floor/i.test(line)&&!/^\[1 pt\]/.test(line.trim())&&slot!=="sub_f6"&&slot!=="sub_f9"&&slot!=="sub_f12"){stop=true;return}
+    var m=line.match(/^\s*\[(\d+) pt\]\s*(.*)$/), b=line.match(/^\u2022\s*(.*)$/), t;
+    if(m){if(!+m[1])return;t=m[2]} else if(b)t=b[1]; else return;
+    var kind=/Signature Minion/i.test(t)?"minion":/\bMount\b/.test(t)?"mount":/\(a Pet\)|\bIt.s a Pet\b|\b(?:a|your)\s+(?:\w+\s+)?Pet\b/.test(t)?"pet":"";
+    if(!kind)return;
+    /* only a line that grants one: "Gain a ...", "It's a Pet", "is your Mount", "(a Pet)", "Signature Minion" */
+    if(!/\bGain (?:a|an)\b|It.s a (?:Pet|Mount)\b|is your (?:Pet|Mount)\b|\(a (?:Pet|Mount)\)|Signature Minion/i.test(t))return;
+    var name="", desc=t, ci=t.indexOf(":");
+    if(ci>0&&ci<40){name=t.slice(0,ci).trim();desc=t.slice(ci+1).trim()}
+    else if(/,\s*Signature Minion/i.test(t))name=t.split(",")[0].trim();
+    else{var g=t.match(/Gain (?:a|an) (?:(?:captured|friendly|calm|bonded|hostile|trusty|loyal)\s+)*(.+?)(?:,|\s+Mount\b|\s+\(|\s+with\b|\.|$)/i);name=g?g[1].trim():""}
+    if(!name||/^(?:Mount|Pet|Minion)\b/i.test(name))name=kind==="mount"?"Mount":kind==="pet"?"Pet":"Minion";
+    var att=(desc.match(/\b(hostile|calm|friendly|bonded)\b/i)||[])[1]||"";
+    att=att?att.charAt(0).toUpperCase()+att.slice(1).toLowerCase():(kind==="minion"?"":"Calm");
+    var sz=desc.match(/\((\d)\)/), mv=desc.match(/Move (?:of )?(\d+)\s*(?:ft)?/i), an=desc.match(/\(\d\)\s+([a-z][a-z\-]+)/), dr=desc.match(/barding with DR (\d+)/i);
+    out.push({kind:kind,name:name,attitude:att,size:sz?+sz[1]:(kind==="mount"?5:kind==="pet"?2:""),sizeUp:/one size (?:class )?bigger than you/i.test(desc),
+      move:mv?+mv[1]:"",animal:an?an[1]:"",drExtra:dr?+dr[1]:"",trample:/Trample attack/i.test(desc),notes:desc.slice(0,220),grantKey:slot+":"+name});
+  });
+  return out;
+}
+/* one companion record from what a race/class/subclass grants */
+function compFromGrant(c,sp){
+  var o={name:sp.name,attitude:sp.attitude,size:sp.size||(sp.kind==="minion"?"":2),move:sp.move||(sp.kind==="mount"?30:""),animal:sp.animal,notes:sp.notes,grantKey:sp.grantKey};
+  if(sp.sizeUp&&sizeNum(c.size))o.size=sizeNum(c.size)+1;
+  if(sp.drExtra)o.drExtra=sp.drExtra;
+  var nc=newCompanion(sp.kind,o); if(sp.trample)nc.upgrades=["Move & Trample attack"];
+  return nc;
+}
 function grantPlan(entry,slot,opts){
+  var gp=grantPlan0(entry,slot,opts);
+  gp.companions=/^item_/.test(slot)?[]:gCompanions(entry,slot);
+  return gp;
+}
+function grantPlan0(entry,slot,opts){
   var strict=!!(opts&&opts.strict);
   var p={slot:slot,entryId:entry.id,name:entry.name,fixed:[],choices:[],manual:[],dr:0,size:"",boxes:[],items:[],abilities:"",natural:[]};
   (entry.abilities||"").split("\n").forEach(function(l){var na=gNatural(l);if(na&&!p.natural.some(function(x){return x.name===na.name}))p.natural.push(na)});
@@ -3927,7 +4049,7 @@ function grantApply(c,plan,extra,itemIds){
     }
     var old=parseInt(ex.rank,10)||0, nw=old+t.n;
     /* the rulebook caps Skill Ranks at 10 during Race and Class selection */
-    if(t.n>0&&nw>10){rec.wasted.push(t.label+": "+(nw-Math.max(old,10))+" over the Rank 10 cap");nw=Math.max(old,10)}
+    if(t.n>0&&nw>10&&(plan.slot==="race"||plan.slot==="klass")){rec.wasted.push(t.label+": "+(nw-Math.max(old,10))+" over the Rank 10 cap");nw=Math.max(old,10)}
     ex.rank=nw; (isSp?rec.spells:rec.skills).push({id:ex.id,delta:nw-old,created:created});
   });
   /* attack rows: natural attacks, then any weapon/hand-to-hand skill granted */
@@ -3957,6 +4079,13 @@ function grantApply(c,plan,extra,itemIds){
     c.inventory.push(row); rec.items.push(row.id);
   });
   plan.boxes.forEach(function(b){var row={id:uid(),name:b.name,rarity:b.rarity,why:b.why};c.boxes.push(row);rec.boxes.push(row.id)});
+  rec.companions=[];
+  (plan.companions||[]).forEach(function(sp){
+    c.companions=c.companions||[];
+    if(c.companions.some(function(x){return x.grantKey===sp.grantKey}))return;
+    var nc=compFromGrant(c,sp);
+    c.companions.push(nc); rec.companions.push(nc.id);
+  });
   c.grants[plan.slot]=rec;
   return rec;
 }
@@ -3983,6 +4112,7 @@ function grantRevert(c,slot){
   c.inventory=c.inventory.filter(function(x){return rec.items.indexOf(x.id)<0});
   if(rec.attacks)c.attacks=c.attacks.filter(function(a){return rec.attacks.indexOf(a.id)<0});
   c.boxes=c.boxes.filter(function(x){return rec.boxes.indexOf(x.id)<0});
+  if(rec.companions&&c.companions)c.companions=c.companions.filter(function(x){return rec.companions.indexOf(x.id)<0});
   delete c.grants[slot];
   return {name:rec.name,textKept:kept};
 }
@@ -4010,6 +4140,13 @@ function grantPreview(c,plan){
     h+='<h3 style="margin-top:10px">Your choices</h3>';
     plan.choices.forEach(function(ch,i){
       h+='<div style="padding:6px 0;border-top:1px solid var(--hair)"><div class="hint" style="margin-bottom:4px">'+esc(ch.text)+'</div>';
+      if(ch.kind==="randomSpell"){
+        var pool=S.library.spells.filter(function(x){return ELEMENT_RX.test(x.type||"")});
+        h+=pool.length?'<button class="btn" data-rspell="'+i+'">'+(ch.picked?"Roll again":"Roll the cursed fruit\u2019s spell")+'</button>'
+          +(ch.picked?' <b>'+esc(ch.picked)+'</b> <span class="hint">('+esc(ch.element)+', Rank '+ch.n+')</span>':'')
+          :'<p class="hint" style="margin:0">Your Library has no elemental spells yet. Import the Core Rulebook (or Crawlers & Customization) first.</p>';
+        h+='</div>'; return;
+      }
       if(ch.kind==="oneOf"){
         h+='<select data-ch="'+i+'"><option value="">Choose\u2026</option>'+ch.opts.map(function(o,j){return '<option value="'+j+'">+'+ch.n+' '+esc(o.label)+'</option>'}).join("")+'</select>';
       }else if(ch.kind==="split"){
@@ -4028,6 +4165,7 @@ function grantPreview(c,plan){
   if(plan.dr)also.push(row("+"+plan.dr+" DR","added to your DR buffs"));
   if(plan.size)also.push(row("Size "+esc(plan.size),"was "+esc(c.size||"not set")));
   plan.boxes.forEach(function(b){also.push(row(esc(b.rarity+" "+b.name),"added to your loot boxes"))});
+  (plan.companions||[]).forEach(function(sp){also.push(row(esc(sp.name)+" ("+({pet:"Pet",mount:"Mount",minion:"Minion"})[sp.kind]+")","added to your Companions"+(sp.attitude?", starting "+esc(sp.attitude):"")))});
   plan.items.forEach(function(it){also.push('<label style="display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--hair)"><input type="checkbox" data-gi="'+it.id+'" checked style="width:auto"><span style="flex:1">'+esc(it.name)+'</span><span class="hint">added to your inventory</span></label>')});
   if(also.length)h+='<h3 style="margin-top:10px">Also</h3>'+also.join("");
   h+='<h3 style="margin-top:10px">Abilities</h3><p class="hint" style="margin:0">The '+kind+'\u2019s abilities and drawbacks are written into <b>'+(plan.slot==="race"?"Racial":"Class")+' abilities</b> on your sheet.</p>';
@@ -4045,6 +4183,7 @@ function grantPreview(c,plan){
         var left=ch.n-sum, el=box.querySelector('[data-left="'+i+'"]'); if(el)el.textContent=left===0?"All placed":(left>0?left+" left to place":(-left)+" too many");
         if(left!==0)ok=false; return;
       }
+      if(ch.kind==="randomSpell"){if(!ch.picked){ok=false;return}extra.push({type:"spell",key:ch.picked,label:ch.picked+" spell",n:ch.n});return}
       var sel=box.querySelector('[data-ch="'+i+'"]'); if(!sel||!sel.value){ok=false;return}
       if(ch.kind==="oneOf")extra.push(Object.assign({},ch.opts[+sel.value],{n:ch.n}));
       else extra.push({type:ch.kind==="anySpell"?"spell":"skill",key:sel.value,label:sel.value,n:ch.n});
@@ -4054,11 +4193,18 @@ function grantPreview(c,plan){
   }
   resolve();
   box.addEventListener("input",resolve); box.addEventListener("change",resolve);
+  box.querySelectorAll("[data-rspell]").forEach(function(b){b.addEventListener("click",function(){
+    var ch=plan.choices[+b.dataset.rspell], pool=S.library.spells.filter(function(x){return ELEMENT_RX.test(x.type||"")});
+    var k=rnd(pool.length); ch.picked=pool[k-1].name; ch.element=(pool[k-1].type.match(ELEMENT_RX)||["?"])[0];
+    recordRoll(c,{label:"Cursed fruit spell",total:k,nat:0,detail:"d"+pool.length+" ["+k+"] \u2192 "+ch.picked+" ("+ch.element+")",tier:"",mode:"normal"});
+    grantPreview(c,plan);
+  })});
   $("grantSkip").addEventListener("click",function(){closeModal()});
   $("grantGo").addEventListener("click",function(){
     var extra=resolve(); if(!extra)return;
     var ids=Array.prototype.filter.call(box.querySelectorAll("[data-gi]"),function(x){return x.checked}).map(function(x){return x.dataset.gi});
     var rec=grantApply(c,plan,extra,ids);
+    plan.choices.forEach(function(ch){if(ch.kind==="randomSpell"&&ch.picked&&plan.subKey&&!c.subclassNotes[plan.subKey])c.subclassNotes[plan.subKey]="Element: "+ch.element+" (cursed fruit spell: "+ch.picked+")"});
     save(); closeModal(); renderSheet();
     toast("Applied "+plan.name+" to your sheet."+(rec.wasted.length?" Capped at Rank 10: "+rec.wasted.join("; ")+".":""),"good");
   });
@@ -4082,11 +4228,26 @@ function gSubclasses(entry){
 }
 function gClassOf(c){return c&&c.classId?S.library.classes.find(function(x){return x.id===c.classId})||null:null}
 function subOptions(c,key){var cl=gClassOf(c);return cl?(gSubclasses(cl)[key]||[]):[]}
+var ELEMENT_RX=/\b(Fire|Ice|Cold|Frost|Lightning|Electric|Thunder|Necrotic|Holy|Radiant|Poison|Acid|Force|Psychic|Sonic|Water|Earth|Wind|Air|Shadow|Light)\b/i;
 function subPlan(c,key,optName){
   var cl=gClassOf(c), opt=subOptions(c,key).find(function(o){return o.name===optName});
   if(!cl||!opt)return null;
-  return grantPlan({id:"sub:"+cl.id+":"+key,name:opt.name+" ("+cl.name+", Floor "+key.slice(1)+")",statBonus:opt.text,skillBonus:"",
+  var p=grantPlan({id:"sub:"+cl.id+":"+key,name:opt.name+" ("+cl.name+", Floor "+key.slice(1)+")",statBonus:opt.text,skillBonus:"",
                     abilities:opt.label+": "+opt.text,drawbacks:"",drBonus:""},"sub_"+key,{strict:true});
+  /* "Roll a random elemental spell ... Rank 10" */
+  var rs=opt.text.match(/random elemental spell[\s\S]*?Rank (\d+)/i);
+  if(rs)p.choices.push({kind:"randomSpell",n:+rs[1],text:"Your cursed fruit\u2019s spell: a random elemental spell at Rank "+rs[1]});
+  /* "Your Charisma can never go above 5" */
+  var cap=opt.text.match(/Charisma can never go above (\d+)/i), cha=parseInt(c.stats.cha,10)||0;
+  if(cap&&cha>+cap[1])p.fixed.push({type:"stat",key:"cha",label:"Charisma (capped at "+cap[1]+")",n:+cap[1]-cha});
+  p.subKey=key;
+  return p;
+}
+function chaCap(c){
+  var cap=null;
+  ["f6","f9","f12"].forEach(function(k){var o=subOptions(c,k).find(function(x){return x.name===c.subclasses[k]});
+    var m=o&&o.text.match(/Charisma can never go above (\d+)/i); if(m)cap=cap==null?+m[1]:Math.min(cap,+m[1])});
+  return cap;
 }
 /* ================= dice: checks, damage, and a party roll log ================= */
 /* The rulebook: Skill Check = d20 + Skill Rank + Stat Mod; Stat Check = d20 +
@@ -4124,15 +4285,26 @@ function rollTier(nat,total,diff){
   if(by>=-2)return "Near Miss Fail"; if(by>=-9)return "Standard Fail"; return "Major Fail";
 }
 function modOf(c,k){return k&&k!=="none"?(statMod(c.enh[k]||c.stats[k])||0):0}
-function rollCheck(c,label,mods){
-  var a=rnd(20), b=DICE.mode!=="normal"?rnd(20):null;
-  var nat=b==null?a:(DICE.mode==="adv"?Math.max(a,b):Math.min(a,b));
+function rollCheck(c,label,mods,kind){
+  var dm=c&&kind?debuffRollMods(c,kind):{mods:[],dis:false,why:[],consume:[],dexOff:false,notes:[]};
+  if(dm.dexOff)mods=mods.map(function(m){return m.l==="DEX"?{l:"DEX ("+dm.dexOff+": not added)",v:0,keep:true}:m});
+  mods=mods.concat(dm.mods);
+  var cam=c&&kind&&DICE.cam&&!DICE.camHold?DICE.cam:null;
+  var mode=DICE.mode; if(dm.dis||cam)mode=mode==="adv"?"normal":"dis";
+  var a=rnd(20), b=mode!=="normal"?rnd(20):null;
+  var nat=b==null?a:(mode==="adv"?Math.max(a,b):Math.min(a,b));
   var add=mods.reduce(function(s,m){return s+(m.v||0)},0), total=nat+add;
   var diff=String(DICE.diff).trim()===""?null:parseInt(DICE.diff,10);
-  var detail="d20 "+(b==null?"["+a+"]":"["+a+", "+b+"] "+(DICE.mode==="adv"?"Advantage":"Disadvantage")+" keeps "+nat)
-    +mods.filter(function(m){return m.v}).map(function(m){return (m.v<0?" \u2212 ":" + ")+Math.abs(m.v)+(m.l?" "+m.l:"")}).join("")
-    +(diff!=null&&!isNaN(diff)?" vs "+diff:"");
-  recordRoll(c,{label:label,total:total,nat:nat,detail:detail,tier:rollTier(nat,total,diff),mode:DICE.mode});
+  var detail="d20 "+(b==null?"["+a+"]":"["+a+", "+b+"] "+(mode==="adv"?"Advantage":"Disadvantage")+" keeps "+nat)
+    +mods.filter(function(m){return m.v||m.keep}).map(function(m){return m.keep&&!m.v?" (no "+m.l+")":(m.v<0?" \u2212 ":" + ")+Math.abs(m.v)+(m.l?" "+m.l:"")}).join("")
+    +(diff!=null&&!isNaN(diff)?" vs "+diff:"")
+    +(dm.dis?(DICE.mode==="adv"?" \u00b7 Advantage cancelled by ":" \u00b7 Disadvantage from ")+dm.why.join(", "):"")
+    +(dm.notes.length?" \u00b7 "+dm.notes.join("; "):"")
+    +(cam?" \u00b7 playing to "+(CAM_TARGETS.find(function(x){return x[0]===cam})||[0,"the cameras"])[1]:"");
+  if(dm.consume.length&&c){c.debuffs=c.debuffs.filter(function(d){return dm.consume.indexOf(d.id)<0})}
+  recordRoll(c,{label:label,total:total,nat:nat,detail:detail,tier:rollTier(nat,total,diff),mode:mode});
+  if(dm.consume.length&&c&&typeof renderSheet==="function"&&$("v-sheet")&&$("v-sheet").classList.contains("on"))renderSheet();
+  if(cam){DICE.cam=null;renderDice();var rr=S.rollLog[0];camOutcome(c,cam,label,{total:rr.total,tier:rr.tier})}
 }
 function recordRoll(c,r){
   r.who=c?(c.name||"Crawler"):"GM"; r.at=Date.now();
@@ -4164,6 +4336,7 @@ function listenPartyRolls(){
   partyRollsCode=code; partyRolls=[]; partyRollsUnsub=function(){};
   var unsubR=rollsRef(code).orderBy("at","desc").limit(40).onSnapshot(function(qs){
     partyRolls=[]; qs.forEach(function(d){var x=d.data();x.id=d.id;partyRolls.push(x)});
+    try{handleRoundPosts(partyRolls)}catch(e){}
     if(DICE.open)renderDice();
   },function(){});
   if(typeof unsubR==="function")partyRollsUnsub=unsubR;
@@ -4172,7 +4345,7 @@ function rollAt(x){var a=x&&x.at; if(!a)return Date.now(); if(typeof a==="number
 function rollItem(r,showWho){
   var cls=/Critical Hit|Amazing|Standard Success/.test(r.tier||"")?"good":/Fail/.test(r.tier||"")?"bad":"";
   return '<div class="rollrow '+cls+'"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">'+(showWho?esc(r.who)+": ":"")+esc(r.label)+'</b>'
-    +(r.mode==="use"?'':'<span class="rolltot">'+esc(r.total)+'</span>')+'</div>'
+    +(r.mode==="use"||r.mode==="round"||r.mode==="fightend"?'':'<span class="rolltot">'+esc(r.total)+'</span>')+'</div>'
     +(r.tier?'<div class="rolltier">'+esc(r.tier)+'</div>':'')
     +'<div class="hint">'+esc(r.detail)+' \u00b7 '+esc(ago(rollAt(r)))+'</div></div>';
 }
@@ -4187,6 +4360,10 @@ function renderDice(){
         return '<button data-dmode="'+m[0]+'" aria-pressed="'+(DICE.mode===m[0])+'">'+m[1]+'</button>'}).join("")+'</div>'
     +'<label class="f"><span class="lab">Difficulty <span class="hint">(optional, if the GM tells you)</span></span>'
     +'<input type="number" id="diceDiff" value="'+esc(DICE.diff)+'" placeholder="Leave blank if it\u2019s secret"></label>'
+    +(c?'<div class="camrow'+(DICE.cam?" on":"")+'"><button class="btn sm'+(DICE.cam?" pri":"")+'" id="camToggle" aria-pressed="'+(!!DICE.cam)+'">Play to the cameras: '+(DICE.cam?"On":"Off")+'</button>'
+      +'<div class="pill" style="flex-wrap:wrap">'+CAM_TARGETS.map(function(x){var lockd=x[0]==="sponsors"&&(c.floor||1)<4;
+        return '<button data-camt="'+x[0]+'" aria-pressed="'+((DICE.camPick||"audience")===x[0])+'"'+(lockd?' disabled title="From the Fourth Floor"':'')+'>'+x[1].replace(/^the /,"")+'</button>'}).join("")+'</div>'
+      +'<div class="hint">'+(DICE.cam?"Your next Check is made with Disadvantage, then the cameras decide (Table 52).":"Before an important, dramatic Check. It\u2019s made with Disadvantage.")+'</div></div>':'')
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin:8px 0">'+["d4","d6","d8","d10","d12","d20","d100"].map(function(dd){return '<button class="btn sm" data-qd="1'+dd+'">'+dd+'</button>'}).join("")+'</div>'
     +'<div style="display:flex;gap:6px"><input type="text" id="diceExpr" placeholder="Any roll, e.g. 2d6+3" style="flex:1"><button class="btn pri" id="diceGo">Roll</button></div>'
     +'<div class="pill" style="margin:12px 0 6px"><button data-dtab="mine" aria-pressed="'+(DICE.tab==="mine")+'">My rolls</button>'
@@ -4212,6 +4389,8 @@ function renderDice(){
     var t=e.target.closest("button"); if(!t)return;
     if(t.id==="diceClose"){DICE.open=false;renderDice();return}
     if(t.dataset.dmode){DICE.mode=t.dataset.dmode;renderDice();return}
+    if(t.id==="camToggle"){DICE.cam=DICE.cam?null:(DICE.camPick||"audience");renderDice();return}
+    if(t.dataset.camt){DICE.camPick=t.dataset.camt;if(DICE.cam)DICE.cam=t.dataset.camt;renderDice();return}
     if(t.dataset.dtab){DICE.tab=t.dataset.dtab;if(DICE.tab==="party")listenPartyRolls();renderDice();return}
     if(t.dataset.qd||t.id==="diceGo"){
       var ex=t.dataset.qd||($("diceExpr")&&$("diceExpr").value)||"", r=rollExpr(ex);
@@ -4233,6 +4412,8 @@ function renderDice(){
   p.addEventListener("keydown",function(e){if(e.target.id==="diceExpr"&&e.key==="Enter"){e.preventDefault();var g=$("diceGo");if(g)g.click()}});
 })();
 if(window.__CM_TEST__)window.__CM_TEST__.cloud=function(db,user,camp,gm){fbDb=db;fbUser=user;cloud.campaign=camp||"";cloud.gmCode=gm||""};
+/* tests only: run code inside the app's scope (absent unless a test creates __CM_TEST__) */
+if(window.__CM_TEST__)window.__CM_TEST__.run=function(src){return eval(src)};
 
 /* ---- the Earth Hobby Potion: a Rank 3 Earth hobby skill ---- */
 /* The table's own 1000-hobby list, used alongside the Core Rulebook's Table 74
@@ -4296,6 +4477,56 @@ document.addEventListener("click",function(e){
   var t=e.target.closest?e.target.closest("[data-drink]"):null; if(!t)return;
   var c=active(); if(c)drinkHobby(c,parseInt(t.dataset.drink,10));
 });
+
+/* ---- companions: sheet wiring ---- */
+(function(){
+  var body=$("sheetBody"); if(!body)return;
+  function comp(t){var cd=t.closest("[data-cx]"), c=active(); if(!cd||!c)return null; return {c:c,p:(c.companions||[])[+cd.dataset.cx],ix:+cd.dataset.cx}}
+  body.addEventListener("click",function(e){
+    var c=active(); if(!c)return; var t=e.target.closest("button"); if(!t)return;
+    if(t.dataset.cnew){c.companions=c.companions||[];c.companions.push(newCompanion(t.dataset.cnew));save();renderSheet();return}
+    if(t.dataset.cgrant){var sp=COMP_SUGGEST[t.dataset.cgrant]; if(!sp)return; c.companions=c.companions||[];
+      c.companions.push(compFromGrant(c,sp));
+      save();renderSheet();toast(sp.name+" joined your Companions"+(sp.attitude?", starting "+sp.attitude:"")+".","good");return}
+    var o=comp(t); if(!o||!o.p)return; var p=o.p, F=parseInt(c.floor,10)||1;
+    if(t.dataset.ca==="del"){ask("Remove "+(p.name||"this companion")+"?","Remove",function(){c.companions.splice(o.ix,1);save();renderSheet()});return}
+    if(t.dataset.ca==="win"){guardAction(c,"check",function(){winOver(c,p)});return}
+    if(t.dataset.ca==="fight"){if(p.inFight)return;guardAction(c,"check",function(){sendIntoFight(c,p)});return}
+    if(t.dataset.ca==="calm"){p.inFight=false;p.ranOff=false;save();renderSheet();return}
+    if(t.dataset.cslot!=null){var i=+t.dataset.cslot;p.hbLost=(i<(p.hbLost||0))?i:i+1;save();renderSheet();return}
+    if(t.dataset.cspend){var k=t.dataset.cspend;if(k==="int"||!(parseInt(p.statPoints,10)>0))return;p.stats[k]=(parseInt(p.stats[k],10)||0)+1;p.statPoints=parseInt(p.statPoints,10)-1;save();renderSheet();return}
+    if(t.dataset.cspec){var sp=t.dataset.cspec,list=p.specials=p.specials||[],at=list.indexOf(sp);if(at>=0)list.splice(at,1);else if(list.length<(ROLE_SPECIALS[p.role]||0))list.push(sp);save();renderSheet();return}
+    if(t.dataset.cup){p.upgrades=p.upgrades||[];if(t.dataset.cup==="Move & Trample attack"&&p.upgrades.indexOf(t.dataset.cup)>=0)return;p.upgrades.push(t.dataset.cup);save();renderSheet();return}
+    if(t.dataset.cupclear){p.upgrades=[];save();renderSheet();return}
+    if(t.dataset.chit!=null||t.dataset.cdmg!=null){
+      var a=petAttacks(p,F)[+(t.dataset.chit!=null?t.dataset.chit:t.dataset.cdmg)]; if(!a)return; var sm=statMod(p.stats.str);
+      if(t.dataset.chit!=null)rollCheck(c,(p.name||"Pet")+": "+a.name+" to hit",[{l:"Floor",v:F},{l:"STR",v:sm}]);
+      else{var rx=rollExpr(a.dice);recordRoll(c,{label:(p.name||"Pet")+": "+a.name+" damage",total:rx.total+sm+a.plus,nat:0,
+        detail:rx.text+(sm?" + "+sm+" STR":"")+(a.plus?" + "+a.plus+" Aggressive":"")+" "+a.type,tier:"",mode:"normal"})}
+      return;
+    }
+  });
+  body.addEventListener("input",function(e){
+    var t=e.target; var o=comp(t); if(!o||!o.p)return;
+    if(t.dataset.cf&&t.tagName!=="SELECT"){o.p[t.dataset.cf]=t.value;save();return}
+    if(t.dataset.cstat){o.p.stats[t.dataset.cstat]=t.value;save();return}
+  });
+  body.addEventListener("change",function(e){
+    var t=e.target, c=active(); if(!c)return;
+    if(t.id==="compTame"&&t.value){
+      var m=S.library.mobs.find(function(x){return x.id===t.value}); if(!m)return;
+      var pet=newCompanion("pet",{name:m.name,animal:m.creature||m.name,size:sizeNum(m.size)||2,attitude:"Hostile",attacks:m.attacks||"",notes:"Tamed from a Mob: "+(m.notes||"").slice(0,160),mobId:m.id});
+      var mi=parseInt(m.int,10); if(mi>pet.stats.int)pet.stats.int=mi;
+      c.companions=c.companions||[]; c.companions.push(pet); save(); renderSheet();
+      toast(m.name+" starts out Hostile. Win it over with Animal Handling: an Amazing Success calms it.");
+      return;
+    }
+    var o=comp(t); if(!o||!o.p)return;
+    if(t.dataset.cf){o.p[t.dataset.cf]=t.value;if(t.dataset.cf==="role")o.p.specials=[];if(t.dataset.cf==="attitude"&&t.value!=="Bonded"){o.p.role="";o.p.specials=[]}save();renderSheet();return}
+    if(t.dataset.cstat){renderSheet();return}
+  });
+})();
+
 /* ---- casting a spell: spend the Mana, roll what the spell calls for, say so ---- */
 function spellStat(lib){
   var st="";
@@ -4303,15 +4534,518 @@ function spellStat(lib){
   if(!st){var om=String((lib&&lib.description)||"").match(/\b(Str|Int|Con|Dex|Cha)[a-z]*-Opposed/i);if(om)st=G_STATS[om[1].toLowerCase()]}
   return st||"int";
 }
+/* ================= companions: pets, mounts and minions =================
+   Core Rulebook, Chapter 4 (Pets & Mounts), in the manager's own words:
+   - every pet starts at Level 1 with the same base stats; Health Bar slots =
+     its size (2-5), +1 per level, to 10. Slice Attack: d20 + Floor + Str to
+     hit, 1d4 + Str Slashing. Attack Ranks = the Floor; an extra damage die at
+     Ranks 5, 10 and 15.
+   - attitude ladder Hostile -> Calm -> Friendly -> Bonded, each step an
+     Int-Opposed Animal Handling Check vs 10 + its Int Mod + Floor:
+     Hostile->Calm needs Amazing, Calm->Friendly Standard, Friendly->Bonded
+     Amazing. Critical Fail: back to Hostile.
+   - once Bonded, a role: Tank (DR = Floor, 1 special), Aggressive (Back Claw
+     and Bite at Rank = Floor, +Floor damage, no specials), Utility (2 specials).
+   - pets level twice for each crawler level until 15, 3 Stat Points a level,
+     never into Intelligence.
+   - mounts: Health Bar slots = size, don't level; upgrades; at least one size
+     class bigger than the rider.
+   - guiding a pet into a fight: Int-Opposed Animal Handling as an Action. */
+var ATTITUDES=["Hostile","Calm","Friendly","Bonded"];
+var PET_SPECIALS=["Move 60ft","Taunt Skill (Rank = Floor)","Catcher Skill (Rank = Floor)","Swim (Move 30ft)","Burrow (Move 30ft)","Jump (Move 50ft)","Heightened Senses","Resistance to an uncommon damage type"];
+var MOUNT_UPGRADES=["+5ft Move","+1 DR","+1 Size","Move & Trample attack"];
+var ROLE_SPECIALS={Tank:1,Aggressive:0,Utility:2};
+function sizeNum(v){var m=String(v||"").match(/(\d+)/);return m?+m[1]:0}
+function newCompanion(kind,extra){
+  var base={id:uid(),kind:kind,name:kind==="pet"?"New pet":kind==="mount"?"New mount":"New minion",animal:"",size:kind==="mount"?5:2,level:1,
+    attitude:kind==="minion"?"":"Calm",role:"",specials:[],upgrades:[],stats:{str:2,int:1,con:2,dex:2,cha:1},statPoints:0,hbLost:0,
+    hbSlots:kind==="minion"?2:"",move:kind==="mount"?30:"",attacks:"",notes:"",inFight:false,ranOff:false,earthBorn:false};
+  return Object.assign(base,extra||{});
+}
+function compSlots(p){
+  if(p.kind==="pet")return Math.min(10,Math.max(1,(parseInt(p.size,10)||2)+(parseInt(p.level,10)||1)-1));
+  if(p.kind==="mount")return Math.min(10,Math.max(1,(parseInt(p.size,10)||5)+(p.upgrades||[]).filter(function(u){return u==="+1 Size"}).length));
+  return Math.max(1,parseInt(p.hbSlots,10)||1);
+}
+function compDR(p,F){
+  var d=0; if(p.kind==="pet"&&p.role==="Tank")d+=F;
+  if(p.kind==="mount")d+=(p.upgrades||[]).filter(function(u){return u==="+1 DR"}).length;
+  return d+(parseInt(p.drExtra,10)||0);
+}
+function compMove(p){
+  if(p.kind==="mount")return (parseInt(p.move,10)||30)+5*(p.upgrades||[]).filter(function(u){return u==="+5ft Move"}).length;
+  if(p.kind==="pet"&&(p.specials||[]).indexOf("Move 60ft")>=0)return 60;
+  return parseInt(p.move,10)||"";
+}
+function petDifficulty(p,F){return 10+statMod(p.stats.int)+F}
+/* the pet's attacks: Slice, plus Back Claw and Bite for Aggressive pets */
+function petAttacks(p,F){
+  var extraDice=(F>=5?1:0)+(F>=10?1:0)+(F>=15?1:0), plus=p.role==="Aggressive"?F:0;
+  var mk=function(name,die,type){var n=1+extraDice;return {name:name,dice:n+"d"+die,type:type,plus:plus}};
+  var list=[mk("Slice Attack",4,"Slashing")];
+  if(p.role==="Aggressive"){
+    ["Back Claw","Bite"].forEach(function(nm){var l=gLib("skills",nm), g=l&&gDamage(l.damage), dm=g&&g.dice&&g.dice.match(/d(\d+)/);
+      list.push(mk(nm,dm?dm[1]:4,(g&&g.type)||(nm==="Bite"?"Piercing":"Slashing")))});
+  }
+  return list;
+}
+/* Animal Handling: the crawler's Check against the pet */
+function animalHandling(c,label,diff,then){
+  var ah=gFind(c.skills,"Animal Handling"), rank=ah?(parseInt(ah.rank,10)||0):0, stat=(ah&&ah.stat&&ah.stat!=="none")?ah.stat:"int";
+  var keep=DICE.diff; DICE.diff=String(diff); var camKeep=DICE.camHold; DICE.camHold=true;
+  try{rollCheck(c,label,[{l:"Animal Handling",v:rank},{l:stat.toUpperCase(),v:modOf(c,stat)}])}finally{DICE.diff=keep;DICE.camHold=camKeep}
+  then(S.rollLog[0],!!ah);
+}
+function winOver(c,p){
+  var F=parseInt(c.floor,10)||1, i=ATTITUDES.indexOf(p.attitude||"Calm");
+  if(i>=3){toast(p.name+" is already Bonded.");return}
+  var need=i===1?"Standard Success":"Amazing Success";
+  animalHandling(c,"Animal Handling: win over "+p.name,petDifficulty(p,F),function(r,has){
+    var tier=r.tier, ok=need==="Standard Success"?/Critical Hit|Amazing|Standard Success/.test(tier):/Critical Hit|Amazing/.test(tier), msg;
+    if(/Critical Fail/.test(tier)){p.attitude="Hostile";msg="Critical Fail: "+p.name+" turns Hostile and attacks you. No more tries for a week."}
+    else if(ok){p.attitude=ATTITUDES[i+1];msg=p.name+" is now "+p.attitude+(p.attitude==="Bonded"?". Choose its role.":".")}
+    else msg="Not this time: "+p.name+" stays "+ATTITUDES[i]+" (it needed a "+need+")."+(/Fail/.test(tier)?" You can\u2019t try again for a while.":"");
+    save(); renderSheet(); toast(msg+(has?"":" (You have no Animal Handling skill, so that was Rank 0.)"),ok?"good":"warn");
+    recordUse(c,"Animal Handling: "+p.name,msg);
+  });
+}
+function sendIntoFight(c,p){
+  var F=parseInt(c.floor,10)||1;
+  animalHandling(c,"Animal Handling: send "+p.name+" into the fight",petDifficulty(p,F),function(r){
+    var t=r.tier, msg;
+    if(/Critical Hit|Amazing/.test(t)){p.inFight=true;p.ranOff=false;msg=p.name+" charges in eagerly: it fights all combat, with two Actions (Evade or Attack, one Attack a round)."}
+    else if(/Standard Success/.test(t)){p.inFight=true;p.ranOff=false;msg=p.name+" fights alongside you all combat: two Actions (Evade or Attack, one Attack a round)."}
+    else if(/Major Fail|Critical Fail/.test(t)){p.inFight=false;p.ranOff=true;msg=p.name+" runs out of sight. Find it and coax it back after the fight."}
+    else if(/Fail/.test(t)){p.inFight=false;msg=p.name+" stays out of it. You can try again with another Action."}
+    else msg="Your GM decides how it went (no Difficulty to compare).";
+    save(); renderSheet(); toast(msg,p.inFight?"good":"warn"); recordUse(c,"Sent "+p.name+" into the fight",msg);
+  });
+}
+function compLevelUp(c,levels){
+  (c.companions||[]).forEach(function(p){
+    if(p.kind!=="pet")return;
+    var lv=parseInt(p.level,10)||1, gain=0;
+    for(var k=0;k<levels;k++){var g=lv<15?2:1;lv+=g;gain+=g}
+    p.level=lv; p.statPoints=(parseInt(p.statPoints,10)||0)+3*gain;
+  });
+}
+function companionCard(c,p,ix){
+  var F=parseInt(c.floor,10)||1, slots=compSlots(p), lost=Math.min(slots,parseInt(p.hbLost,10)||0), dr=compDR(p,F), mv=compMove(p);
+  var riderSize=sizeNum(c.size), sz=sizeNum(p.size)+(p.kind==="mount"?(p.upgrades||[]).filter(function(u){return u==="+1 Size"}).length:0);
+  var h='<div class="comp card" data-cx="'+ix+'">'
+    +'<div class="ihead"><input type="text" data-cf="name" value="'+esc(p.name)+'" style="font-weight:800;flex:1;min-width:120px">'
+    +'<span class="chip">'+({pet:"Pet",mount:"Mount",minion:"Minion"})[p.kind]+(p.kind==="pet"?" \u00b7 Level "+esc(p.level):"")+'</span>'
+    +'<button class="x" data-ca="del" aria-label="Remove companion">\u00d7</button></div>'
+    +'<div class="grid g4" style="margin-top:6px">'
+    +'<label class="f"><span class="lab">What it is</span><input type="text" data-cf="animal" value="'+esc(p.animal)+'" placeholder="Dog, gecko, skeleton\u2026"></label>'
+    +'<label class="f"><span class="lab">Size</span><input type="number" data-cf="size" value="'+esc(p.size)+'" min="1" max="8"></label>'
+    +(p.kind!=="minion"?'<label class="f"><span class="lab">Attitude</span><select data-cf="attitude">'+ATTITUDES.map(function(a){return '<option'+(p.attitude===a?" selected":"")+'>'+a+'</option>'}).join("")+'</select></label>':'<label class="f"><span class="lab">Health Bar slots</span><input type="number" data-cf="hbSlots" value="'+esc(p.hbSlots)+'" min="1" max="10"></label>')
+    +'<div class="f"><span class="lab">DR \u00b7 Move</span><div class="out sm">'+dr+' \u00b7 '+(mv||"\u2014")+(mv?"ft":"")+'</div></div></div>';
+  h+='<div class="hb" style="margin-top:8px">';
+  for(var i=0;i<slots;i++)h+='<button data-cslot="'+i+'" data-lost="'+(i<lost?1:0)+'" style="height:36px"><span class="v">'+(i+1)+'</span></button>';
+  h+='</div>'+(lost>=slots?'<div class="hint" style="color:var(--rust)">'+(p.earthBorn?"Down. Earth-born pets die instantly at 0%.":"Down at 0%.")+'</div>':'');
+  if(p.kind==="pet"){
+    h+='<div class="cstats">'+["str","int","con","dex","cha"].map(function(k){
+      return '<div class="f"><span class="lab">'+k.toUpperCase()+'</span><input type="number" data-cstat="'+k+'" value="'+esc(p.stats[k])+'">'
+        +((parseInt(p.statPoints,10)||0)>0&&k!=="int"?'<button class="btn sm" data-cspend="'+k+'">+1</button>':'')+'</div>'}).join("")+'</div>'
+      +((parseInt(p.statPoints,10)||0)>0?'<div class="hint">'+p.statPoints+' Stat Point'+(p.statPoints>1?"s":"")+' to spend (never on Intelligence).</div>':'');
+    h+='<div class="lab" style="margin-top:8px">Attacks <span class="hint">Rank = Floor ('+F+')</span></div>'
+      +petAttacks(p,F).map(function(a,k){return '<div class="catk"><span style="flex:1"><b>'+esc(a.name)+'</b> <span class="hint">d20 + '+F+' Floor + Str to hit \u00b7 '+a.dice+' + Str'+(a.plus?" + "+a.plus:"")+' '+esc(a.type)+'</span></span>'
+        +'<button class="btn sm" data-chit="'+k+'">Hit</button><button class="btn sm" data-cdmg="'+k+'">Dmg</button></div>'}).join("");
+    if(p.attitude==="Bonded"){
+      h+='<div class="grid g2" style="margin-top:8px"><label class="f"><span class="lab">Role</span><select data-cf="role"><option value="">Choose a role\u2026</option>'
+        +["Tank","Aggressive","Utility"].map(function(r){return '<option'+(p.role===r?" selected":"")+'>'+r+'</option>'}).join("")+'</select></label>'
+        +'<div class="hint" style="align-self:end">'+({Tank:"DR equal to the Floor, and one special ability.",Aggressive:"Back Claw and Bite at Rank = Floor, + Floor damage on all Attacks, no special abilities.",Utility:"Two special abilities."}[p.role]||"Tank, Aggressive or Utility.")+'</div></div>';
+      var allowed=ROLE_SPECIALS[p.role]||0;
+      if(allowed){h+='<div class="lab" style="margin-top:6px">Special abilities ('+(p.specials||[]).length+' of '+allowed+')</div><div class="pill" style="flex-wrap:wrap">'
+        +PET_SPECIALS.map(function(sp){var on=(p.specials||[]).indexOf(sp)>=0;return '<button data-cspec="'+esc(sp)+'" aria-pressed="'+on+'"'+(!on&&(p.specials||[]).length>=allowed?" disabled":"")+'>'+esc(sp)+'</button>'}).join("")+'</div>'}
+    }
+  }
+  if(p.kind==="mount"){
+    h+='<div class="lab" style="margin-top:8px">Upgrades <span class="hint">(5,000 gold each; non-attack ones can be repeated)</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">'
+      +MOUNT_UPGRADES.map(function(u){var n=(p.upgrades||[]).filter(function(x){return x===u}).length;return '<button class="btn sm" data-cup="'+esc(u)+'">'+esc(u)+(n?" \u00d7"+n:"")+'</button>'}).join("")
+      +((p.upgrades||[]).length?'<button class="btn sm" data-cupclear="1">Clear upgrades</button>':'')+'</div>';
+    if(riderSize&&sz&&sz<=riderSize)h+='<div class="dbnow">Too small to ride: a mount must be at least one size class bigger than its rider (you\u2019re '+esc(c.size)+').</div>';
+  }
+  if(p.kind!=="pet")h+='<label class="f" style="margin-top:8px"><span class="lab">Attacks</span><input type="text" data-cf="attacks" value="'+esc(p.attacks)+'" placeholder="e.g. Trample 2d6 Bludgeoning"></label>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+    +(p.kind!=="minion"&&p.attitude!=="Bonded"?'<button class="btn sm pri" data-ca="win">Win it over</button>':'')
+    +(p.kind==="pet"&&/Friendly|Bonded/.test(p.attitude)?'<button class="btn sm" data-ca="fight">'+(p.inFight?"Fighting with you":"Send into the fight")+'</button>':'')
+    +(p.inFight||p.ranOff?'<button class="btn sm" data-ca="calm">Fight\u2019s over</button>':'')
+    +'</div>'
+    +(p.kind!=="minion"&&p.attitude!=="Bonded"?'<div class="hint">Int-Opposed Animal Handling vs '+petDifficulty(p,F)+' (10 + its Int Mod + Floor). '+({Hostile:"Hostile \u2192 Calm needs an Amazing Success.",Calm:"Calm \u2192 Friendly needs a Standard Success.",Friendly:"Friendly \u2192 Bonded needs an Amazing Success."}[p.attitude]||"")+'</div>':'')
+    +(p.ranOff?'<div class="dbnow">'+esc(p.name)+' ran off. Find it after the fight.</div>':'')
+    +'<label class="f" style="margin-top:6px"><span class="lab">Notes</span><input type="text" data-cf="notes" value="'+esc(p.notes)+'" placeholder="Gear, tricks, personality"></label>'
+    +'</div>';
+  return h;
+}
+var COMP_SUGGEST={};
+function missingCompanions(c){
+  var out=[], have=function(k){return (c.companions||[]).some(function(x){return x.grantKey===k})};
+  var r=c.raceId&&S.library.races.find(function(x){return x.id===c.raceId}), k=gClassOf(c);
+  if(r)gCompanions(r,"race").forEach(function(sp){if(!have(sp.grantKey))out.push(sp)});
+  if(k)gCompanions(k,"klass").forEach(function(sp){if(!have(sp.grantKey))out.push(sp)});
+  ["f6","f9","f12"].forEach(function(f){var o=subOptions(c,f).find(function(x){return x.name===(c.subclasses||{})[f]});
+    if(o)gCompanions({abilities:"[1 pt] "+o.text},"sub_"+f).forEach(function(sp){if(!have(sp.grantKey))out.push(sp)})});
+  return out;
+}
+function companionsSection(c){
+  var list=c.companions||[], miss=missingCompanions(c); COMP_SUGGEST={};
+  miss.forEach(function(sp){COMP_SUGGEST[sp.grantKey]=sp});
+  return '<div class="sec" id="compSec"><div class="bar"><h3>Companions</h3><span class="sp"></span>'
+    +'<select id="compTame" style="max-width:190px"><option value="">Tame a Mob\u2026</option>'+S.library.mobs.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+'</option>'}).join("")+'</select>'
+    +'<button class="btn sm" data-cnew="pet">New pet</button><button class="btn sm" data-cnew="mount">New mount</button><button class="btn sm" data-cnew="minion">New minion</button></div>'
+    +miss.map(function(sp){return '<div class="dbnow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-color:var(--teal)"><span style="flex:1">Your '
+      +(/^race/.test(sp.grantKey)?"race":"class")+' gives you <b>'+esc(sp.name)+'</b> ('+({pet:"a Pet",mount:"a Mount",minion:"a Minion"})[sp.kind]+').</span>'
+      +'<button class="btn sm pri" data-cgrant="'+esc(sp.grantKey)+'">Add it</button></div>'}).join("")
+    +(list.length?list.map(function(p,i){return companionCard(c,p,i)}).join(""):(miss.length?'':'<div class="empty-note">No pets, mounts or minions yet.</div>'))
+    +'</div>';
+}
+
+/* ================= Popularity, and playing to the cameras =================
+   Core Rulebook, Chapter 6: announce you're playing to the Audience, the AI, or
+   (from the Fourth Floor) the Sponsors before an important Check; the Check has
+   Disadvantage; Table 52 decides what you get. Popularity keeps a history. */
+var CAM_TARGETS=[["audience","the Audience"],["ai","the AI"],["sponsors","the Sponsors"]];
+var CAM_ROWS=[["great","Critical Hit or Amazing Success"],["success","Standard Success"],["near","Near Miss"],["fail","Standard Fail"],["major","Major Fail"],["crit","Critical Fail"]];
+function camRow(tier){return /Critical Hit|Amazing/.test(tier)?"great":/Standard Success/.test(tier)?"success":/Near Miss/.test(tier)?"near":/Major Fail/.test(tier)?"major":/Critical Fail/.test(tier)?"crit":/Standard Fail/.test(tier)?"fail":""}
+/* sponsors are the sheet's three name slots: only filled-in ones count */
+function hasSponsors(c){return (c.sponsors||[]).some(function(x){return typeof x==="string"?x.trim():x&&String(x.name||"").trim()})}
+function camOutcomeText(c,target,row,suffered){
+  if(target==="audience")return {great:"Gain 2 Popularity",success:"Gain 1 Popularity",near:"No effect",fail:"Lose 1 Popularity",major:"Lose 2 Popularity",
+    crit:suffered?"They truly suffered: gain 1 Popularity":"No effect, unless they truly suffer (then gain 1 Popularity)"}[row];
+  if(target==="ai")return {great:"Gain 2 AI Favor",success:"Gain 1 AI Favor",near:"No effect",fail:"Lose 1 AI Favor",major:"Lose 2 AI Favor",crit:"The AI rides your ass: no AI Favor for the rest of the day"}[row];
+  if(!hasSponsors(c))return (row==="great"||row==="success")?"No Sponsor yet, but one takes an interest (+1 Sponsor interest)":"No Sponsor yet, so nothing bad happens (except the inner shame)";
+  return {great:"A Gold or Platinum Benefactor Box, or an interested Sponsor bids on your contract",success:"A Bronze or Silver Benefactor Box",near:"No effect",
+    fail:"Your next Benefactor Box drops a tier",major:"No Benefactor Box this Floor",crit:"They get embarrassed and drop you, or another Sponsor bids on your contract (GM\u2019s call)"}[row];
+}
+function popLog(c,kind,delta,why){
+  if(!Array.isArray(c.popLog))c.popLog=[];
+  c.popLog.unshift({at:Date.now(),kind:kind,delta:delta,why:why,floor:c.floor||1});
+  if(c.popLog.length>200)c.popLog.length=200;
+}
+var FAN_MILESTONES=[25,50,100,200,300,400,500,750,1000];
+function changePopularity(c,delta,why,quiet){
+  var before=parseInt(c.popularity,10)||0, after=before+delta; c.popularity=after;
+  popLog(c,"Popularity",delta,why);
+  if(!Array.isArray(c.fanMilestones))c.fanMilestones=[];
+  var hit=FAN_MILESTONES.filter(function(m){return before<m&&after>=m&&c.fanMilestones.indexOf(m)<0});
+  if(hit.length){var m=hit[hit.length-1]; hit.forEach(function(x){c.fanMilestones.push(x)});
+    setTimeout(function(){ask((c.name||"Your crawler")+" just reached "+m+" Popularity. Fans often send a Fan Box at milestones like this (your GM\u2019s call). Add a Fan Box to the unopened loot boxes?","Add a Fan Box",function(){
+      c.boxes.push({id:uid(),name:"Fan Box",rarity:"",why:"Reached "+m+" Popularity"});save();renderInv();renderSheet();toast("A Fan Box is waiting. Set its rarity when the votes are in.","good")})},50);}
+  if(!quiet)recordUse(c,(delta>0?"+":"")+delta+" Popularity",why);
+}
+function changeFavor(c,delta,why){
+  if(delta>0&&c.aiBlocked){popLog(c,"AI Favor",0,why+" (blocked: the AI is riding you today)");return 0}
+  c.aiFavor=String((parseInt(c.aiFavor,10)||0)+delta); popLog(c,"AI Favor",delta,why); return delta;
+}
+function camOutcome(c,target,label,roll){
+  var row=camRow(roll.tier), suffered=false, boxRar="";
+  var tname=(CAM_TARGETS.find(function(x){return x[0]===target})||[0,"the cameras"])[1];
+  function body(){
+    var out=row?camOutcomeText(c,target,row,suffered):"";
+    var boxChoice=target==="sponsors"&&hasSponsors(c)&&(row==="great"||row==="success");
+    var rars=row==="great"?["Gold","Platinum"]:["Bronze","Silver"];
+    return '<h2 style="font-size:20px;margin-bottom:4px">Playing to '+esc(tname)+'</h2>'
+      +'<div class="hint" style="margin-bottom:8px">'+esc(label)+': rolled '+esc(roll.total)+(roll.tier?' ('+esc(roll.tier)+')':'')+'. First resolve the Check itself, then the cameras.</div>'
+      +'<div class="lab">How did it go?'+(roll.tier&&row?'':' <span class="hint">(no Difficulty was set, so your GM decides)</span>')+'</div>'
+      +'<div class="pill" style="flex-wrap:wrap;margin:4px 0 10px">'+CAM_ROWS.map(function(r){return '<button data-camrow="'+r[0]+'" aria-pressed="'+(row===r[0])+'">'+r[1]+'</button>'}).join("")+'</div>'
+      +(row?'<div class="dbnow" style="border-color:var(--amber)"><b>'+esc(out)+'</b></div>':'')
+      +(target==="audience"&&row==="crit"?'<label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="camSuffer" style="width:auto"'+(suffered?" checked":"")+'> They truly suffered</label>':'')
+      +(boxChoice?'<label class="f" style="margin-top:8px"><span class="lab">Box rarity (GM\u2019s call)</span><select id="camRar">'+rars.map(function(r){return '<option'+(boxRar===r?" selected":"")+'>'+r+'</option>'}).join("")+'</select></label>':'')
+      +(target==="ai"&&c.aiBlocked&&(row==="great"||row==="success")?'<p class="hint">The AI is still riding you today, so no AI Favor comes of it.</p>':'')
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="camNo">Skip</button><button class="btn pri" id="camYes"'+(row?'':' disabled')+'>Apply</button></div>';
+  }
+  function wire(){
+    $("camNo").addEventListener("click",closeModal);
+    $("modalBox").querySelectorAll("[data-camrow]").forEach(function(b){b.addEventListener("click",function(){row=b.dataset.camrow;openModal(body());wire()})});
+    if($("camSuffer"))$("camSuffer").addEventListener("change",function(){suffered=$("camSuffer").checked;openModal(body());wire()});
+    if($("camRar"))$("camRar").addEventListener("change",function(){boxRar=$("camRar").value});
+    $("camYes").addEventListener("click",function(){
+      var why="Played to "+tname+": "+label+" ("+(CAM_ROWS.find(function(r){return r[0]===row})||[0,""])[1]+")", F=c.floor||1, said=camOutcomeText(c,target,row,suffered);
+      if(target==="audience"){var d={great:2,success:1,near:0,fail:-1,major:-2,crit:suffered?1:0}[row]; if(d)changePopularity(c,d,why,true); else popLog(c,"Popularity",0,why)}
+      else if(target==="ai"){
+        if(row==="crit"){c.aiBlocked=true;popLog(c,"AI Favor",0,why+": no AI Favor for the rest of the day")}
+        else{var dv={great:2,success:1,near:0,fail:-1,major:-2}[row]; if(dv)changeFavor(c,dv,why); else popLog(c,"AI Favor",0,why)}
+      }else{
+        if(!hasSponsors(c)){if(row==="great"||row==="success"){c.sponsorInterest=(parseInt(c.sponsorInterest,10)||0)+1;popLog(c,"Sponsors",1,why+": a Sponsor takes an interest")} else popLog(c,"Sponsors",0,why)}
+        else if(row==="great"||row==="success"){
+          if(c.benefactorFloor===F){popLog(c,"Sponsors",0,why+": already had this Floor\u2019s Benefactor Box")}
+          else if(c.noBoxFloor===F){popLog(c,"Sponsors",0,why+": no Benefactor Box this Floor")}
+          else{var rar=boxRar||(row==="great"?"Gold":"Bronze");
+            if(c.boxDowngrade){var ri=RARITY.indexOf(rar);rar=RARITY[Math.max(0,ri-1)];c.boxDowngrade=false}
+            c.boxes.push({id:uid(),name:"Benefactor Box",rarity:rar,why:"Played to the Sponsors"});c.benefactorFloor=F;popLog(c,"Sponsors",1,why+": a "+rar+" Benefactor Box")}
+        }
+        else if(row==="fail"){c.boxDowngrade=true;popLog(c,"Sponsors",-1,why+": the next Benefactor Box drops a tier")}
+        else if(row==="major"){c.noBoxFloor=F;popLog(c,"Sponsors",-1,why+": no Benefactor Box this Floor")}
+        else if(row==="crit"){popLog(c,"Sponsors",-1,why+": embarrassed Sponsor (drop you, or another bids)")}
+        else popLog(c,"Sponsors",0,why);
+      }
+      save(); closeModal(); renderSheet(); renderInv();
+      recordUse(c,"Played to "+tname,said);
+      toast(said+".",row==="great"||row==="success"?"good":"");
+    });
+  }
+  openModal(body()); wire();
+}
+/* the sheet's Popularity section */
+var POP_REASONS=[
+  [1,"A Critical Hit or Critical Fail in a fight or a life-or-death Check (once per session)"],
+  [1,"A courageous act (once per session)"],
+  [1,"An original, entertaining solution that worked (once per session)"],
+  [1,"An original catchphrase, used just enough"],
+  [1,"Appeared on the end-of-day recap (once per day)"],
+  [1,"Your Pet did something cute (end of Floor)"],
+  [-1,"Avoided a fight (once per session)"],
+  [-1,"Boring or gross (once per session)"],
+  [-1,"A big, boring d10+ Attack as your main Attack all Floor (end of Floor)"],
+  [-1,"Entered the stairwell more than 30 hours early (end of Floor)"],
+  [-1,"Grinding through most of the final 30 hours (end of Floor)"]];
+function popSectionHtml(c){
+  var log=Array.isArray(c.popLog)?c.popLog:[], F=c.floor||1;
+  var h='<div class="sec"><div class="bar"><h3>Popularity &amp; favor</h3><span class="sp"></span></div>'
+    +'<div class="grid g3">'
+    +'<div class="f"><span class="lab">Popularity</span><div style="display:flex;gap:6px;align-items:center"><button class="btn sm" data-pop="-1" aria-label="Lose 1 Popularity">\u2212</button>'
+      +'<div class="out" style="flex:1">'+esc(parseInt(c.popularity,10)||0)+'</div><button class="btn sm" data-pop="1" aria-label="Gain 1 Popularity">+</button></div></div>'
+    +'<div class="f"><span class="lab">AI Favor</span><div style="display:flex;gap:6px;align-items:center"><button class="btn sm" data-fav="-1" aria-label="Lose 1 AI Favor">\u2212</button>'
+      +'<div class="out" style="flex:1">'+esc(parseInt(c.aiFavor,10)||0)+'</div><button class="btn sm" data-fav="1" aria-label="Gain 1 AI Favor">+</button></div></div>'
+    +((F>=4||c.sponsorInterest)?'<div class="f"><span class="lab">Sponsor interest</span><div class="out">'+esc(parseInt(c.sponsorInterest,10)||0)+'</div></div>':'')
+    +'</div>'
+    +(c.aiBlocked?'<div class="dbnow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1">The AI is riding your ass: no AI Favor for the rest of the day.</span><button class="btn sm" id="aiNewDay">A new day</button></div>':'')
+    +'<label class="f" style="margin-top:8px"><span class="lab">Something happened</span><select id="popReason"><option value="">Pick from the rulebook\u2019s guidelines\u2026</option>'
+      +POP_REASONS.map(function(r,i){return '<option value="'+i+'">'+(r[0]>0?"+1":"\u22121")+': '+esc(r[1])+'</option>'}).join("")+'</select></label>'
+    +'<p class="hint" style="margin-top:4px">To play to the cameras, turn it on in the Dice panel before an important Check.</p>'
+    +'<details style="margin-top:6px"'+(log.length?"":" ")+'><summary class="lab" style="cursor:pointer">History ('+log.length+')</summary>'
+    +(log.length?'<div class="poplog">'+log.slice(0,40).map(function(x){var dt=new Date(x.at);
+      return '<div><b class="'+(x.delta>0?"up":x.delta<0?"down":"")+'">'+(x.delta>0?"+":x.delta<0?"\u2212":"\u00b1")+Math.abs(x.delta||0)+' '+esc(x.kind)+'</b> '+esc(x.why)
+        +' <span class="hint">Floor '+esc(x.floor)+' \u00b7 '+dt.toLocaleDateString()+'</span></div>'}).join("")+'</div>':'<p class="hint">Nothing yet.</p>')
+    +'</details></div>';
+  return h;
+}
+/* end of a Floor: the book's Charisma guidelines */
+function floorEndPopularity(c,endedFloor){
+  var cha=parseInt(c.enh.cha||c.stats.cha,10)||0, out=[];
+  if(cha>=5*endedFloor){changePopularity(c,1,"End of Floor "+endedFloor+": Charisma "+cha+" is at least 5 \u00d7 Floor ("+5*endedFloor+")");out.push("+1 Popularity for your Charisma")}
+  else if(cha<=2*endedFloor){changePopularity(c,-1,"End of Floor "+endedFloor+": Charisma "+cha+" is 2 \u00d7 Floor ("+2*endedFloor+") or lower");out.push("\u22121 Popularity for your Charisma")}
+  return out;
+}
+
+/* ================= debuffs that do things =================
+   Read from each debuff's own wording (book or homebrew), so a debuff written
+   like the book's works without setup:
+     damage:      "You take 1d10+F Fire damage at the end of each round"
+     penalties:   "a -1 penalty on all Checks" (per stack if stackable)
+     disadvantage:"all your Checks with Disadvantage", "all Attacks with
+                  Disadvantage", "Disadvantage on your next Check"
+     limits:      "can't take any Actions", "may only perform Attack and Move
+                  Actions", "lose your next Action", "can't ... cast Spells",
+                  "can't be healed"
+     attackers:   "Attacks against ... are made with Advantage"
+     durations:   "until the end of the next round" (2 round-ends), "the end of
+                  2 rounds", "once you make a Check", "the end of the combat" */
+function dbText(d){var l=gLib("debuffs",d.name||d)||{};return {fx:String(l.effect||l.description||""),dur:String(l.duration||""),stack:/yes/i.test(l.stackable||"")||/\bStackable\b/i.test(l.effect||""),lib:l}}
+function debuffMech(d){
+  var T=dbText(d), fx=T.fx, dur=T.dur, both=fx+" "+dur, m={stackable:T.stack};
+  var dot=fx.match(/take (\d+d\d+)(\s*\+\s*F\b)?\s*(?:([A-Z][a-z]+)\s+)?(?:damage\s+)?at the end of each round/i);
+  if(dot)m.dot={dice:dot[1],plusF:!!dot[2],type:dot[3]||""};
+  var pen=fx.match(/([\u2212\u2011\-]\s*\d+)\s*penalty (?:on|to) all (?:Checks|rolls)/i);
+  if(pen)m.penalty=-parseInt(pen[1].replace(/[^\d]/g,""),10);
+  if(/make all your Checks with Disadvantage/i.test(fx))m.disAll=true;
+  if(/make all Attacks with Disadvantage/i.test(fx))m.disAttacks=true;
+  if(/Disadvantage on your next Check|next Action requires a roll, it.s made with Disadvantage/i.test(fx))m.disNext=true;
+  if(/if it is an Attack, its Check is made with Disadvantage/i.test(fx))m.disNextAttack=true;
+  if(/can.t add your Dex Mod to Attack/i.test(fx))m.dexOff=true;
+  if(/require sight with Disadvantage/i.test(fx))m.sight=true;
+  if(/Attacks (?:made )?against (?:you|a Held foe|[\w ]+) (?:are )?made with Advantage/i.test(fx))m.attAdv=true;
+  if(/can.t take any Actions/i.test(fx))m.block="noActions";
+  else if(/may only perform Attack and Move Actions/i.test(fx))m.block="onlyAttackMove";
+  else if(/lose your next Action/i.test(fx))m.block="loseAction";
+  else if(/can.t (?:speak or )?cast Spells/i.test(fx))m.block="noCast";
+  else if(/can.t be healed/i.test(fx))m.block="noHeal";
+  if(/^dying$/i.test(d.name||d))m.dying=true;
+  var up=fx.match(/a second time changes it to an? ([A-Z][\w\u2011\- ]+?)\./);if(up)m.upgradeTo=up[1].trim();
+  var rn=dur.match(/end of (\d+) rounds?/i);
+  if(/until the end of the next round/i.test(dur))m.rounds=2; else if(rn)m.rounds=+rn[1];
+  if(/once you make a Check|at the end of the next Action/i.test(dur))m.consume=true;
+  if(/end of (?:the )?combat/i.test(both))m.combat=true;
+  return m;
+}
+function mechWords(m,F){
+  var w=[];
+  if(m.dot)w.push(m.dot.dice+(m.dot.plusF?"+"+(F!=null?F:"F"):"")+(m.dot.type?" "+m.dot.type:"")+" damage each round"+(m.stackable?" per stack":""));
+  if(m.penalty)w.push(m.penalty+" to all Checks"+(m.stackable?" per stack":""));
+  if(m.disAll)w.push("Disadvantage on all Checks");
+  if(m.disAttacks)w.push("Disadvantage on Attacks");
+  if(m.disNext)w.push("Disadvantage on the next Check");
+  if(m.disNextAttack)w.push("Disadvantage if the next Action is an Attack");
+  if(m.dexOff)w.push("no Dex Mod on Attacks or Evade");
+  if(m.sight)w.push("Disadvantage on checks that need sight");
+  if(m.attAdv)w.push("attacks against them have Advantage");
+  if(m.block)w.push({noActions:"no Actions",onlyAttackMove:"only Attack and Move Actions",loseAction:"loses the next Action",noCast:"can\u2019t cast Spells",noHeal:"can\u2019t be healed"}[m.block]);
+  if(m.dying)w.push("counts down to death");
+  if(m.combat)w.push("ends with the fight");
+  return w;
+}
+function stacksOf(d,m){return m.stackable?Math.max(1,parseInt(d.stacks,10)||1):1}
+/* add a debuff the way the book says: stack it, upgrade it, or start its timer */
+function addDebuff(list,name,c){
+  var l=gLib("debuffs",name), nm=l?l.name:name, m=debuffMech(nm);
+  var ex=list.find(function(d){return gNorm(d.name)===gNorm(nm)});
+  if(ex&&m.upgradeTo){var up=gLib("debuffs",m.upgradeTo);list.splice(list.indexOf(ex),1);return addDebuff(list,up?up.name:m.upgradeTo,c)}
+  if(ex&&m.stackable){ex.stacks=(parseInt(ex.stacks,10)||1)+1;return ex}
+  if(ex){if(m.rounds)ex.rounds=m.rounds;return ex}
+  var rec={id:uid(),name:nm,stacks:1,note:l?(l.duration||""):""};
+  if(m.rounds)rec.rounds=m.rounds;
+  if(m.dying&&c)rec.rounds=Math.max(1,statMod(c.enh.con||c.stats.con));
+  list.push(rec); return rec;
+}
+/* what a crawler's debuffs do to a d20 roll right now */
+function debuffRollMods(c,kind){
+  var out={mods:[],dis:false,why:[],consume:[],dexOff:false,notes:[]};
+  (c.debuffs||[]).forEach(function(d){
+    var m=debuffMech(d), n=stacksOf(d,m);
+    if(m.penalty)out.mods.push({l:d.name+(n>1?" \u00d7"+n:""),v:m.penalty*n});
+    if(m.disAll){out.dis=true;out.why.push(d.name)}
+    if(m.disAttacks&&kind==="attack"){out.dis=true;out.why.push(d.name)}
+    if(m.disNext){out.dis=true;out.why.push(d.name);out.consume.push(d.id)}
+    if(m.disNextAttack){if(kind==="attack"){out.dis=true;out.why.push(d.name)}out.consume.push(d.id)}
+    if(m.consume&&out.consume.indexOf(d.id)<0)out.consume.push(d.id);
+    if(m.dexOff&&kind==="attack")out.dexOff=d.name;
+    if(m.sight&&kind==="check")out.notes.push(d.name+": Disadvantage if this needs sight");
+  });
+  return out;
+}
+/* warn before an action a debuff forbids; kinds: attack, check, cast, castAttack, use, heal */
+function guardAction(c,kinds,go){
+  if(!c){go();return}
+  kinds=[].concat(kinds); var has=function(k){return kinds.indexOf(k)>=0};
+  var acting=has("attack")||has("check")||has("cast")||has("castAttack")||has("use"), msgs=[], shocked=null;
+  (c.debuffs||[]).forEach(function(d){
+    var b=debuffMech(d).block; if(!b)return;
+    if(b==="noActions"&&acting)msgs.push("You\u2019re "+d.name+": you can\u2019t take any Actions.");
+    if(b==="onlyAttackMove"&&(has("check")||has("cast")||has("use")))msgs.push("You\u2019re "+d.name+": you may only Attack and Move.");
+    if(b==="noCast"&&(has("cast")||has("castAttack")))msgs.push("You\u2019re "+d.name+": you can\u2019t cast Spells.");
+    if(b==="noHeal"&&has("heal"))msgs.push("You have "+d.name+": you can\u2019t be healed.");
+    if(b==="loseAction"&&acting)shocked=d;
+  });
+  if(shocked){
+    openModal('<h2 style="font-size:20px;margin-bottom:6px">You\u2019re '+esc(shocked.name)+'</h2>'
+      +'<p style="margin:0 0 10px">You lose your next Action.'+(msgs.length?" "+esc(msgs.join(" ")):"")+'</p>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" id="gdNo">Cancel</button>'
+      +'<button class="btn" id="gdAny">Do it anyway</button><button class="btn pri" id="gdForfeit">Forfeit the Action</button></div>');
+    $("gdNo").addEventListener("click",closeModal);
+    $("gdAny").addEventListener("click",function(){closeModal();go()});
+    $("gdForfeit").addEventListener("click",function(){c.debuffs=c.debuffs.filter(function(x){return x!==shocked});save();closeModal();renderSheet();
+      recordUse(c,"Forfeited an Action",shocked.name+" cleared");toast("Action forfeited. "+shocked.name+" is gone.")});
+    return;
+  }
+  if(msgs.length)ask(msgs.join(" ")+" Do it anyway?","Do it anyway",go); else go();
+}
+/* the end of a round for one crawler: damage over time, timers, Dying */
+function tickCrawler(c){
+  var out=[], F=parseInt(c.floor,10)||1, cmv=statMod(c.enh.con||c.stats.con), lost=0, taken=[];
+  (c.debuffs||[]).forEach(function(d){
+    var m=debuffMech(d); if(!m.dot)return;
+    for(var i=0;i<stacksOf(d,m);i++){
+      var rx=rollExpr(m.dot.dice); if(!rx)continue;
+      var tot=rx.total+(m.dot.plusF?F:0), r=slotsLost(tot,0,"normal",cmv); lost+=r.slots; taken.push(d.name+" "+tot);
+      recordRoll(c,{label:d.name+" (end of round)",total:tot,nat:0,detail:rx.text+(m.dot.plusF?" + "+F+" F":"")+(m.dot.type?" "+m.dot.type:"")
+        +" \u00b7 "+(r.slots?r.slots+" Health Bar slot"+(r.slots>1?"s":"")+" lost":"no slot lost"),tier:"",mode:"normal"});
+    }
+  });
+  if(lost){var before=c.hbLost||0;c.hbLost=Math.min(10,before+lost);if(c.hbLost>before)out.push("lost "+(c.hbLost-before)+" Health Bar slot"+(c.hbLost-before>1?"s":""))}
+  c.debuffs=(c.debuffs||[]).filter(function(d){
+    if(d.rounds==null||d.rounds==="")return true;
+    var r=(parseInt(d.rounds,10)||0)-1; d.rounds=Math.max(0,r);
+    if(r<=0){if(debuffMech(d).dying){out.push("the Dying countdown has run out");return true}out.push(d.name+" wore off");return false}
+    return true;
+  });
+  if((c.hbLost||0)>=10&&!c.debuffs.some(function(d){return debuffMech(d).dying})){addDebuff(c.debuffs,"Dying",c);out.push("is Dying")}
+  if((c.hbLost||0)<10)c.debuffs=c.debuffs.filter(function(d){return !debuffMech(d).dying});
+  save(); return out;
+}
+function endFightFor(c){var n=(c.debuffs||[]).length;c.debuffs=(c.debuffs||[]).filter(function(d){return !debuffMech(d).combat});save();return n-c.debuffs.length}
+/* GM posts to the party feed so each player's device runs its own crawler */
+function postRound(mode,label,detail){
+  var code=rollCode(); if(!code||!fbDb||!fbUser)return false;
+  try{var p=rollsRef(code).add({owner:fbUser.uid,who:"GM",label:String(label).slice(0,120),detail:String(detail||"").slice(0,300),total:0,nat:0,tier:"",mode:mode,at:fbNow()});if(p&&p.catch)p.catch(function(){})}catch(e){return false}
+  listenPartyRolls(); return true;
+}
+var roundsPrimed=false;
+function rollAt(x){var a=x.at;if(!a)return 0;if(typeof a.toMillis==="function")return a.toMillis();if(typeof a.getTime==="function")return a.getTime();if(a.seconds)return a.seconds*1000;return typeof a==="number"?a:0}
+function handleRoundPosts(list){
+  var posts=list.filter(function(x){return x.mode==="round"||x.mode==="fightend"}), newest=0;
+  posts.forEach(function(x){newest=Math.max(newest,rollAt(x))});
+  if(!roundsPrimed){roundsPrimed=true;S.roundSeen=Math.max(S.roundSeen||0,newest);return}
+  var fresh=posts.filter(function(x){return rollAt(x)>(S.roundSeen||0)}).sort(function(a,b){return rollAt(a)-rollAt(b)});
+  if(!fresh.length)return;
+  S.roundSeen=Math.max(S.roundSeen||0,newest);
+  var c=active();
+  fresh.forEach(function(x){
+    if(!c)return;
+    if(x.mode==="round"){var out=tickCrawler(c);if(out.length)toast(x.label+": "+(c.name||"Your crawler")+" "+out.join(", ")+".","warn")}
+    else{var n=endFightFor(c);if(n)toast("The fight is over: "+n+" debuff"+(n>1?"s":"")+" ended with it.")}
+  });
+  save(); if($("v-sheet")&&$("v-sheet").classList.contains("on"))renderSheet();
+}
+/* mobs: the same rules, on the encounter */
+function tickMob(m,F){
+  var out=[], val=parseInt(m.hbValue,10)||0, slots=parseInt(m.hbSlots,10)||1;
+  (m.debuffs||[]).forEach(function(d){
+    var mc=debuffMech(d); if(!mc.dot||(m.lost||0)>=slots)return;
+    for(var i=0;i<stacksOf(d,mc);i++){var rx=rollExpr(mc.dot.dice);if(!rx)continue;
+      var tot=rx.total+(mc.dot.plusF?F:0), r=slotsLost(tot,0,"normal",val); m.lost=Math.min(slots,(m.lost||0)+r.slots);
+      recordRoll(null,{label:m.name+": "+d.name,total:tot,nat:0,detail:rx.text+(mc.dot.plusF?" + "+F+" F":"")+(mc.dot.type?" "+mc.dot.type:"")+" \u00b7 "+(r.slots?r.slots+" slot"+(r.slots>1?"s":""):"no slot"),tier:"",mode:"normal"});
+      if(r.slots)out.push(m.name+" lost "+r.slots+" to "+d.name);}
+  });
+  m.debuffs=(m.debuffs||[]).filter(function(d){
+    if(d.rounds==null||d.rounds==="")return true;
+    var r=(parseInt(d.rounds,10)||0)-1; d.rounds=Math.max(0,r);
+    if(r<=0){out.push(m.name+"\u2019s "+d.name+" wore off");return false} return true;
+  });
+  if((m.lost||0)>=slots&&out.length)out.push(m.name+" is down");
+  return out;
+}
+function encFloor(){var E=S.encounter;if(E.floor)return parseInt(E.floor,10)||1;var c=active();return c?(parseInt(c.floor,10)||1):1}
+function endRound(){
+  var E=S.encounter, F=encFloor(), out=[];
+  E.entries.forEach(function(m){out=out.concat(tickMob(m,F))});
+  var label="Round "+(E.round||1)+" ended";
+  var posted=postRound("round",label,out.join("; ")||"Process your debuffs.");
+  if(!posted){S.characters.forEach(function(c){if((c.debuffs||[]).length){var o=tickCrawler(c);if(o.length)out.push((c.name||"Crawler")+" "+o.join(", "))}})}
+  E.round=(E.round||1)+1; save(); renderEnc(); renderSheet();
+  toast(label+(out.length?": "+out.join("; ")+".":". Nothing ticked."),out.length?"warn":"");
+}
+
+/* the Cursed-Fruit Corsair's element lock: only spells of the fruit's element,
+   with Advantage on them. The element is read from the subclass Details. */
+function elementLock(c){
+  var out=null;
+  ["f6","f9","f12"].forEach(function(k){
+    var o=subOptions(c,k).find(function(x){return x.name===(c.subclasses||{})[k]});
+    if(o&&/only use spells of that element/i.test(o.text)){var m=String((c.subclassNotes||{})[k]||"").match(/Element:\s*([A-Za-z]+)/);if(m)out=m[1]}
+  });
+  return out;
+}
+function spellElement(lib){var m=String((lib&&lib.type)||"").match(ELEMENT_RX);return m?m[1]:""}
+/* run cast() now, or after a warning if the spell breaks the element lock */
+function checkLock(c,lib,nm,cast){
+  var lock=elementLock(c); if(!lock){cast(null);return}
+  var el=spellElement(lib);
+  if(el&&el.toLowerCase()===lock.toLowerCase()){cast(lock);return}
+  ask("Your cursed fruit only lets you use "+lock+" spells, and "+nm+" is "+(el?"a "+el+" spell":"not an elemental spell")+". Cast it anyway?","Cast anyway",function(){cast(null)});
+}
 function castSpell(c,ix){
   var sp=c.spells[ix]; if(!sp)return;
   var lib=S.library.spells.find(function(l){return l.id===sp.libId})||gLib("spells",sp.name)||{};
   var nm=lib.name||sp.name||"Spell", rank=parseInt(sp.rank,10)||0;
   var cost=parseInt(lib.mana,10)||0, cur=parseInt(c.manaCur,10)||0, mx=parseInt(c.enh.int||c.stats.int,10)||0;
   if(cost>cur){toast("Not enough Mana to cast "+nm+". It needs "+cost+", you have "+cur+".","warn");return}
-  c.manaCur=cur-cost; save(); renderSheet();
-  recordUse(c,"Cast "+nm,"Rank "+rank+(cost?" \u00b7 \u2212"+cost+" Mana":" \u00b7 no Mana"));
-  castWindow(c,lib,nm,rank,{title:"You cast "+nm,line:"Rank "+rank+" \u00b7 "+(cost?"\u2212"+cost+" Mana, "+c.manaCur+" of "+mx+" left":"no Mana")});
+  guardAction(c,/\battack\b/i.test(lib.type||"")?"castAttack":"cast",function(){checkLock(c,lib,nm,function(adv){
+    c.manaCur=cur-cost; save(); renderSheet();
+    recordUse(c,"Cast "+nm,"Rank "+rank+(cost?" \u00b7 \u2212"+cost+" Mana":" \u00b7 no Mana"));
+    castWindow(c,lib,nm,rank,{title:"You cast "+nm,line:"Rank "+rank+" \u00b7 "+(cost?"\u2212"+cost+" Mana, "+c.manaCur+" of "+mx+" left":"no Mana"),advFrom:adv});
+  })});
 }
 /* the cast window, shared by casting and by spell scrolls: rolls what the
    spell calls for, offers damage, and stays up until you're done with it */
@@ -4320,12 +5054,17 @@ function castWindow(c,lib,nm,rank,o){
   /* a spell's own text wins: "Make a Con-Opposed Spell Check" even if it's typed as an attack */
   var checkLabel=opp?opp[1].charAt(0).toUpperCase()+opp[1].slice(1).toLowerCase()+"-Opposed Spell Check":isAtk?"Spell Attack":"";
   var check=null;
-  if(checkLabel){rollCheck(c,nm+" ("+checkLabel+")",[{l:"Rank",v:rank},{l:st.toUpperCase(),v:modOf(c,st)}]);check=S.rollLog[0]}
+  if(checkLabel){
+    var keep=DICE.mode; if(o.advFrom)DICE.mode=keep==="dis"?"normal":"adv"; DICE.camHold=true;
+    try{rollCheck(c,nm+" ("+checkLabel+")",[{l:"Rank",v:rank},{l:st.toUpperCase(),v:modOf(c,st)}],opp?"check":"attack")}finally{DICE.mode=keep;DICE.camHold=false}
+    check=S.rollLog[0];
+  }
   var dmg=gDamage(lib.damage), canDmg=!!(dmg&&dmg.dice), dmgText="";
   function body(){
     return '<h2 style="font-size:20px;margin-bottom:4px">'+esc(o.title)+'</h2>'
       +'<div class="hint" style="margin-bottom:8px">'+esc(o.line)+(lib.range?' \u00b7 range '+esc(lib.range):'')+(lib.duration?' \u00b7 '+esc(lib.duration):'')+'</div>'
       +(o.note?'<div style="margin-bottom:8px">'+esc(o.note)+'</div>':'')
+      +(o.advFrom&&checkLabel?'<div class="hint" style="margin-bottom:8px">Advantage from your cursed fruit: it\u2019s a '+esc(o.advFrom)+' spell.</div>':'')
       +(check?'<div class="rollrow '+(/Critical Hit|Amazing|Standard Success/.test(check.tier)?"good":/Fail/.test(check.tier)?"bad":"")+'"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">'+esc(checkLabel)+'</b><span class="rolltot">'+esc(check.total)+'</span></div>'
         +(check.tier?'<div class="rolltier">'+esc(check.tier)+'</div>':'')+'<div class="hint">'+esc(check.detail)+(opp?' \u00b7 against the target\u2019s own check':isAtk?' \u00b7 against the target\u2019s Evade':'')+'</div></div>':'')
       +(dmgText?'<div class="rollrow"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">Damage</b><span class="rolltot">'+esc(dmgText.total)+'</span></div><div class="hint">'+esc(dmgText.detail)+'</div></div>':'')
@@ -4346,6 +5085,24 @@ function castWindow(c,lib,nm,rank,o){
   }
   openModal(body()); wire();
 }
+/* ---- phones: tables scroll sideways with set column widths ----
+   On narrow screens each table's flexible (fr) columns become fixed widths:
+   150px for the pinned name, 160px for the rest. Every row of a table then
+   shares the same widths, so columns line up and the pinned name stays small.
+   The original layout comes back on wider screens. */
+var PHONE=window.matchMedia?window.matchMedia("(max-width:820px)"):{matches:false,addListener:function(){}};
+function fitTables(){
+  document.querySelectorAll(".tbl>.tr").forEach(function(tr){
+    var cur=tr.style.gridTemplateColumns||""; if(!cur)return;
+    if(!tr.dataset.cols)tr.dataset.cols=cur;
+    if(PHONE.matches){var i=0;tr.style.gridTemplateColumns=tr.dataset.cols.replace(/(?:minmax\([^)]*\)|[\d.]+fr)/g,function(){return (i++===0)?"150px":"160px"})}
+    else tr.style.gridTemplateColumns=tr.dataset.cols;
+  });
+}
+var fitPending=false;
+if(window.MutationObserver)new MutationObserver(function(){if(fitPending)return;fitPending=true;
+  (window.requestAnimationFrame||setTimeout)(function(){fitPending=false;fitTables()})}).observe(document.body,{childList:true,subtree:true});
+if(PHONE.addEventListener)PHONE.addEventListener("change",fitTables); else if(PHONE.addListener)PHONE.addListener(fitTables);
 /* ---- what a skill does, shown under its row on the sheet ---- */
 var SKILL_INFO_OPEN={};
 function skillInfoHtml(s){
@@ -4582,10 +5339,11 @@ $("sheetBody").addEventListener("change",function(e){
     c.attacks[parseInt(rw.dataset.ix,10)][e.target.dataset.a]=e.target.value;
     save();renderSheet();return;
   }
+  if(e.target.id==="popReason"&&e.target.value!==""){var pr=POP_REASONS[+e.target.value];changePopularity(c,pr[0],pr[1]);save();renderSheet();return}
   if(e.target.id==="dbPick"){
     var d=S.library.debuffs.find(function(l){return l.id===e.target.value});
     if(!d)return;
-    c.debuffs.push({id:uid(),name:d.name,stacks:1,note:d.duration||""});
+    addDebuff(c.debuffs,d.name,c);
     save();renderSheet();return;
   }
   if(e.target.id==="spPick"){
@@ -4619,12 +5377,12 @@ $("sheetBody").addEventListener("click",function(e){
   if(rb){
     var rc=active(); if(!rc)return;
     var rp=rb.dataset.roll, rk=rp.slice(0,rp.indexOf(":")), rid=rp.slice(rp.indexOf(":")+1);
-    if(rk==="stat")rollCheck(rc,G_STATNAME[rid]+" check",[{l:rid.toUpperCase(),v:modOf(rc,rid)}]);
+    if(rk==="stat")guardAction(rc,"check",function(){rollCheck(rc,G_STATNAME[rid]+" check",[{l:rid.toUpperCase(),v:modOf(rc,rid)}],"check")});
     else if(rk==="skill"){var rs=rc.skills.find(function(x){return x.id===rid}); if(!rs)return;
       var rst=rs.stat&&rs.stat!=="none"?rs.stat:"";
-      rollCheck(rc,(rs.name||"Skill")+" check",[{l:"Rank",v:parseInt(rs.rank,10)||0},{l:rst.toUpperCase(),v:modOf(rc,rst)}]);}
+      guardAction(rc,"check",function(){rollCheck(rc,(rs.name||"Skill")+" check",[{l:"Rank",v:parseInt(rs.rank,10)||0},{l:rst.toUpperCase(),v:modOf(rc,rst)}],"check")});}
     else if(rk==="hit"){var ra=rc.attacks.find(function(x){return x.id===rid}); if(!ra)return;
-      rollCheck(rc,(ra.name||"Attack")+" to hit",[{l:"Rank",v:parseInt(ra.hitRank,10)||0},{l:(ra.hitStat||"").toUpperCase(),v:modOf(rc,ra.hitStat)}]);}
+      guardAction(rc,"attack",function(){rollCheck(rc,(ra.name||"Attack")+" to hit",[{l:"Rank",v:parseInt(ra.hitRank,10)||0},{l:(ra.hitStat||"").toUpperCase(),v:modOf(rc,ra.hitStat)}],"attack")});}
     else if(rk==="dmg"){var rd=rc.attacks.find(function(x){return x.id===rid}); if(!rd)return;
       var rx=rollExpr(rd.dmgDice); if(!rx){toast("Give "+(rd.name||"this attack")+" some damage dice first, like 1d8.","warn");return}
       var dmm=modOf(rc,rd.dmgStat);
@@ -4676,6 +5434,7 @@ $("sheetBody").addEventListener("click",function(e){
     var nf=(c.floor||1)+1;
     ask("Advance "+(c.name||"this crawler")+" to Floor "+nf+"? Before you do: at the end of each floor, "
       +"roll an advancement check for every marked skill at Rank 5 or higher.","Advance",function(){
+      var popEnd=floorEndPopularity(c,c.floor||1);
       c.floor=nf;
       var line="Reached Floor "+nf;
       c.levelLog=c.levelLog?(c.levelLog+"\n"+line):line;
@@ -4692,14 +5451,16 @@ $("sheetBody").addEventListener("click",function(e){
     var from=parseInt(c.level,10)||1, to=from+1;
     c.level=to;
     c.statPoints=(parseInt(c.statPoints,10)||0)+3;
-    var line="Level "+from+" \u2192 "+to+" (+3 stat points)";
+    compLevelUp(c,1);
+    var line="Level "+from+" \u2192 "+to+" (+3 stat points)"+((c.companions||[]).some(function(x){return x.kind==="pet"})?"; pets level up too":"");
     c.levelLog=c.levelLog?(c.levelLog+"\n"+line):line;
     save(); renderSheet(); return;
   }
   if(t.dataset.spend){
     var pts=parseInt(c.statPoints,10)||0;
     if(pts<=0||(c.floor||1)<3)return;
-    var k=t.dataset.spend;
+    var k=t.dataset.spend, capC=k==="cha"?chaCap(c):null;
+    if(capC!=null&&(parseInt(c.stats[k],10)||0)+1>capC){toast("Your Charisma can never go above "+capC+".","warn");return}
     c.stats[k]=(parseInt(c.stats[k],10)||0)+1;
     c.enh[k]=(parseInt(c.enh[k],10)||0)+1;
     c.statPoints=pts-1;
@@ -4727,7 +5488,12 @@ $("sheetBody").addEventListener("click",function(e){
       +", and one slot is worth "+(cmv||"—")+".","warn");return}
     c.hbLost=Math.min(10,(c.hbLost||0)+r.slots); save(); renderSheet(); return;
   }
-  if(t.id==="dmgHeal"){c.hbLost=Math.max(0,(c.hbLost||0)-1);save();renderSheet();return}
+  if(t.id==="dmgHeal"){guardAction(c,"heal",function(){c.hbLost=Math.max(0,(c.hbLost||0)-1);if(c.hbLost<10)c.debuffs=c.debuffs.filter(function(d){return !debuffMech(d).dying});save();renderSheet()});return}
+  if(t.dataset.pop){changePopularity(c,+t.dataset.pop,"Adjusted by hand");save();renderSheet();return}
+  if(t.dataset.fav){var fd=changeFavor(c,+t.dataset.fav,"Adjusted by hand");if(!fd)toast("The AI is riding you today: no AI Favor until a new day.","warn");save();renderSheet();return}
+  if(t.id==="aiNewDay"){c.aiBlocked=false;popLog(c,"AI Favor",0,"A new day: the AI lets it go");save();renderSheet();return}
+  if(t.id==="dbTick"){var to=tickCrawler(c);renderSheet();toast("End of round: "+(to.length?(c.name||"you")+" "+to.join(", ")+".":"nothing ticked."),to.length?"warn":"");return}
+  if((t.id==="restShort"||t.id==="restLong")&&!t.dataset.ok){guardAction(c,"heal",function(){t.dataset.ok="1";t.click();delete t.dataset.ok});return}
   if(t.id==="restShort"){
     c.hbLost=Math.max(0,(c.hbLost||0)-5);
     var mx=parseInt(c.enh.int||c.stats.int,10)||0;
@@ -5171,7 +5937,8 @@ function spendOne(c,it){
   if(q<=0){grantRevert(c,"item_"+it.id);c.inventory.splice(c.inventory.indexOf(it),1)} else it.qty=q;
   syncInv(c);
 }
-function useItem(c,it){
+function useItem(c,it,ok){
+  if(!ok){var ef0=itemEffect(it)||it.notes||"";guardAction(c,/Heals?\s+\d+\s+Health Bar/i.test(ef0)?["use","heal"]:"use",function(){useItem(c,it,true)});return}
   var name=it.name||"item", eff=itemEffect(it)||it.notes||"", isPotion=itemCat(it)==="Potion", out=[];
   if(/earth hobby potion/i.test(name)){drinkHobby(c,c.inventory.indexOf(it));return}
   if(isTome(it)||isSpellScroll(it)){useTomeOrScroll(c,it);return}
@@ -5328,9 +6095,11 @@ function readTome(c,it){
 }
 function castScroll(c,it){
   var ls=(it.spellLibId&&S.library.spells.find(function(s){return s.id===it.spellLibId}))||gLib("spells",it.spellName)||{}, nm=ls.name||it.spellName, rank=parseInt(it.spellRank,10)||1;
-  spendOne(c,it); save(); renderInv(); renderSheet();
-  recordUse(c,"Cast "+nm+" from a scroll","Rank "+rank+" \u00b7 no Mana");
-  castWindow(c,ls,nm,rank,{title:"You cast "+nm+" from a scroll",line:"Rank "+rank+" \u00b7 no Mana",note:"The scroll is used up.",scroll:true});
+  guardAction(c,/\battack\b/i.test(ls.type||"")?"castAttack":"cast",function(){checkLock(c,ls,nm,function(adv){
+    spendOne(c,it); save(); renderInv(); renderSheet();
+    recordUse(c,"Cast "+nm+" from a scroll","Rank "+rank+" \u00b7 no Mana");
+    castWindow(c,ls,nm,rank,{title:"You cast "+nm+" from a scroll",line:"Rank "+rank+" \u00b7 no Mana",note:"The scroll is used up.",scroll:true,advFrom:adv});
+  })});
 }
 function useTomeOrScroll(c,it){
   var kind=isTome(it)?"tome":"scroll";
@@ -5658,7 +6427,8 @@ function renderEnc(){
     +S.library.mobs.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+'</option>'}).join("")
     +'</select>'
     +'<input type="number" id="encQty" value="1" min="1" max="12" style="width:64px" title="How many">'
-    +'<button class="btn sm" id="encRound">Next round</button>'
+    +'<label class="hint" style="display:flex;gap:4px;align-items:center">Floor <input type="number" id="encFloor" value="'+esc(E.floor||encFloor())+'" min="1" style="width:56px" title="F in damage like 1d6+F"></label>'
+    +'<button class="btn sm pri" id="encRound">End round</button>'
     +'<button class="btn sm dgr" id="encClear">End fight</button></div>';
 
   if(!E.entries.length){
@@ -5702,7 +6472,25 @@ function renderEnc(){
         +String(slotsLost(m.raw,m.dr,m.mode||"normal",val).slots)+'</div></div>'
       +'<div class="f"><span class="lab">&nbsp;</span>'
         +'<button class="btn pri" data-m="hit" style="height:34px">Apply</button></div>'
-      +'</div>';
+      +'</div>'
+      +'<label class="f" style="margin-top:6px"><span class="lab">And a debuff with that damage</span><select data-m="dbwith"><option value="">None</option>'
+        +S.library.debuffs.map(function(x){return '<option value="'+x.id+'"'+(m.dbWith===x.id?" selected":"")+'>'+esc(x.name)+'</option>'}).join("")+'</select></label>';
+    var mdb=m.debuffs||[], F0=encFloor();
+    h+='<div class="mobdb"><div class="lab">Debuffs</div>'
+      +(mdb.length?mdb.map(function(d,k){var mc=debuffMech(d);return '<div class="dbchip"><b>'+esc(d.name)+(stacksOf(d,mc)>1?" \u00d7"+stacksOf(d,mc):"")+'</b>'
+        +'<span class="hint">'+esc(mechWords(mc,F0).join(", "))+'</span>'
+        +'<label class="hint">rounds <input type="number" data-m="dbr" data-k="'+k+'" value="'+esc(d.rounds==null?"":d.rounds)+'" style="width:52px"></label>'
+        +'<button class="x" data-m="dbdel" data-k="'+k+'">\u00d7</button></div>'}).join(""):'<div class="hint">None</div>')
+      +'<select data-m="dbadd" style="margin-top:4px"><option value="">Add a debuff\u2026</option>'+S.library.debuffs.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join("")+'</select>';
+    var rem=[];
+    mdb.forEach(function(d){var mc=debuffMech(d);
+      if(mc.attAdv)rem.push("Attacks against it have Advantage ("+d.name+")");
+      if(mc.disAll||mc.disAttacks)rem.push("Its "+(mc.disAll?"Checks":"Attacks")+" have Disadvantage ("+d.name+")");
+      if(mc.penalty)rem.push(mc.penalty*stacksOf(d,mc)+" to its Checks ("+d.name+")");
+      if(mc.dexOff)rem.push("No Dex Mod on its Attacks or Evade ("+d.name+")");
+      if(mc.block==="noActions"||mc.block==="loseAction")rem.push("It loses its Action ("+d.name+")");});
+    if(rem.length)h+='<div class="dbnow" style="margin-top:6px">'+rem.map(function(x){return '<div>'+esc(x)+'</div>'}).join("")+'</div>';
+    h+='</div>';
 
     if(m.attacks)h+='<p class="hint" style="margin-top:8px;white-space:pre-wrap">'+esc(m.attacks)+'</p>';
     /* weaknesses, immunities and pack behaviour live in the stat block's notes;
@@ -5720,10 +6508,13 @@ function renderEnc(){
 }
 
 $("encBody").addEventListener("input",function(e){
-  var t=e.target, card=t.closest(".card"); if(!card)return;
+  var t=e.target;
+  if(t.id==="encFloor"){S.encounter.floor=t.value;save();return}
+  var card=t.closest(".card"); if(!card)return;
   var m=S.encounter.entries[parseInt(card.dataset.ix,10)];
   if(!m)return;
   if(t.dataset.m==="raw"){m.raw=t.value;save();renderEnc();return}
+  if(t.dataset.m==="dbr"){var dbr=(m.debuffs||[])[+t.dataset.k];if(dbr){dbr.rounds=t.value;save()}return}
   if(t.dataset.m==="note"){m.note=t.value;save()}
 });
 $("encBody").addEventListener("change",function(e){
@@ -5746,13 +6537,17 @@ $("encBody").addEventListener("change",function(e){
   var card=t.closest(".card"); if(!card)return;
   var m=S.encounter.entries[parseInt(card.dataset.ix,10)];
   if(m&&t.dataset.m==="mode"){m.mode=t.value;save();renderEnc()}
+  if(m&&t.dataset.m==="dbadd"&&t.value){m.debuffs=m.debuffs||[];var ad=S.library.debuffs.find(function(x){return x.id===t.value});if(ad)addDebuff(m.debuffs,ad.name);save();renderEnc()}
+  if(m&&t.dataset.m==="dbwith"){m.dbWith=t.value;save()}
 });
 $("encBody").addEventListener("click",function(e){
   var t=e.target;
-  if(t.id==="encRound"){S.encounter.round=(S.encounter.round||1)+1;save();renderEnc();return}
+  if(t.id==="encRound"){endRound();return}
   if(t.id==="encClear"){
     ask("End the fight and clear all combatants?","End fight",function(){
-      S.encounter={round:1,entries:[]};save();renderEnc();toast("Encounter cleared.");
+      var fl=S.encounter.floor; S.encounter={round:1,entries:[],floor:fl};
+      var n=0; if(!postRound("fightend","The fight is over","Debuffs that last until the end of combat end now.")){S.characters.forEach(function(c){n+=endFightFor(c)})}
+      save();renderEnc();renderSheet();toast("Encounter cleared."+(n?" "+n+" debuff"+(n>1?"s":"")+" ended with the fight.":""));
     });
     return;
   }
@@ -5760,6 +6555,7 @@ $("encBody").addEventListener("click",function(e){
   var ix=parseInt(card.dataset.ix,10), m=S.encounter.entries[ix];
   if(!m)return;
   if(t.dataset.m==="del"){S.encounter.entries.splice(ix,1);save();renderEnc();return}
+  if(t.dataset.m==="dbdel"){(m.debuffs||[]).splice(+t.dataset.k,1);save();renderEnc();return}
   var slotBtn=t.closest("button[data-slot]");
   if(slotBtn){
     var i=parseInt(slotBtn.dataset.slot,10);
@@ -5770,7 +6566,9 @@ $("encBody").addEventListener("click",function(e){
     var r=slotsLost(m.raw,m.dr,m.mode||"normal",val);
     if(!r.slots){toast("No slot lost — after DR that is "+r.after+", and a slot is worth "+(val||"—")+".","warn");return}
     m.lost=Math.min(parseInt(m.hbSlots,10)||1,(m.lost||0)+r.slots);
-    m.raw=""; save(); renderEnc();
+    m.raw="";
+    if(m.dbWith){var wd=S.library.debuffs.find(function(x){return x.id===m.dbWith});if(wd){m.debuffs=m.debuffs||[];addDebuff(m.debuffs,wd.name);toast(m.name+" took "+r.slots+" slot"+(r.slots>1?"s":"")+" and is now "+wd.name+".")}m.dbWith=""}
+    save(); renderEnc();
   }
 });
 
