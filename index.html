@@ -326,6 +326,7 @@ select{cursor:pointer}
           <button data-k="mobs" aria-pressed="false">Mobs</button>
           <button data-k="races" aria-pressed="false">Races</button>
           <button data-k="classes" aria-pressed="false">Classes</button>
+          <button data-k="charts" aria-pressed="false">Charts</button>
         </div>
         <input type="text" id="libSearch" placeholder="Search…" style="max-width:220px">
         <span class="sp"></span>
@@ -414,7 +415,7 @@ var store={
 
 /* ---------------- model ---------------- */
 var S={characters:[],activeId:null,encounter:{round:1,entries:[]},
-       library:{skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[]}};
+       library:{skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[],charts:[]}};
 var libKind="skills", libQuery="";
 var saveTimer=null;
 
@@ -567,6 +568,24 @@ function save(){
    has (including their own edits to these). Keep the book's own material
    out of here — this file sits on a public link. */
 var DEFAULT_LIBRARY={
+charts:[
+ {
+  "name": "Garden State Turnpike Encounters",
+  "type": "Encounters",
+  "die": "1d8",
+  "homebrew": true,
+  "rows": "1-2: Traffic. Nothing happens, very slowly.\n3: A flock of [[ShoreGull]] dives for your snacks.\n4: [[Rat-a-Tat]] bursts out of a storm drain.\n5: A [[Jersey Meatball]] rolls down the on-ramp.\n6: A [[Waste Management Associate]] wants a word.\n7: A toll booth. Pay 1d10 gold, or take [[Debt (The Ledger)]].\n8: A rest stop! Roll on [[Rest Stop Vending Machine]].",
+  "notes": "Example chart for the Garden State floor. Edit it, or use it as a template for your own."
+ },
+ {
+  "name": "Rest Stop Vending Machine",
+  "type": "Shop list",
+  "die": "1d6",
+  "homebrew": true,
+  "rows": "1: It eats your money. Lose 1d10 gold.\n2: A snack so stale it hurts. Gain [[Demoralized]].\n3-4: Nothing comes out. You shake it. Still nothing.\n5: A dusty [[Earth Hobby Potion]] drops into the tray.\n6: Jackpot: an [[Enchanted Lasso]] somehow fit in slot B4.",
+  "notes": "Example chart. Linked rows can be handed straight to a crawler."
+ }
+],
 spells:[
  {
   "name": "Get in the Ball",
@@ -1580,7 +1599,7 @@ async function load(){
   if(raw){ try{ var d=JSON.parse(raw);
     S.characters=(d.characters||[]).map(migrate); S.activeId=d.activeId||null;
     S.rollLog=Array.isArray(d.rollLog)?d.rollLog.slice(0,100):[];
-    S.library=Object.assign({skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[]},d.library||{});
+    S.library=Object.assign({skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[],charts:[]},d.library||{});
     S.encounter=d.encounter||{round:1,entries:[]};
     seedDefaults();
     S.characters.forEach(function(ch){try{ensureInv(ch)}catch(e){}});
@@ -2141,7 +2160,7 @@ var CODE_RE=/^[A-Za-z0-9_-]{4,40}$/;
 
 var cloud={config:null,campaign:"",gmCode:""};
 var fbAuth=null, fbDb=null, fbUser=null, cloudReady=null, cloudErr="";
-var gmOpen=false, partyRows=[], partyAt=0, partyErr="", partyOpenId=null, partyBusy=false;
+var gmOpen=false, partyRows=[], partyAt=0, partyErr="", partyNote="", partyOpenId=null, partyBusy=false;
 var partyUnsub=null, partyTick=null;
 var pushTimer=null, pushed={}, pushState={};
 
@@ -2404,7 +2423,9 @@ function renderParty(){
       +'<div class="f"><span class="lab">Password</span><input type="password" id="gPass" autocomplete="current-password"></div></div>'
       +(partyErr?'<p class="hint" style="color:var(--rust);margin:8px 0 0">'+esc(partyErr)+'</p>':'')
       +'<div style="margin-top:10px;display:flex;gap:8px"><button class="btn pri" id="gSignIn"'+(partyBusy?" disabled":"")+'>Sign in</button>'
-      +'<button class="btn" id="gSignUp"'+(partyBusy?" disabled":"")+'>Create GM account</button></div></div>';
+      +'<button class="btn" id="gSignUp"'+(partyBusy?" disabled":"")+'>Create GM account</button></div>'
+      +'<button class="btn sm" id="gForgot" style="margin-top:8px"'+(partyBusy?" disabled":"")+'>Forgot password?</button>'
+      +(partyNote?'<p class="hint" style="margin:6px 0 0;color:var(--teal)">'+esc(partyNote)+'</p>':'')+'</div>';
     host.innerHTML=h; return;
   }
   if(!gmOpen){
@@ -2575,7 +2596,19 @@ $("partyBody").addEventListener("click",async function(e){
       cloud.campaign=""; cloudSaveCfg(); renderParty(); toast("Left "+old+".");
     }); return;
   }
-  if(t.id==="gSignIn"||t.id==="gSignUp"){
+  if(t.id==="gForgot"){
+    /* Firebase emails a link to set a new password; the account (and its
+       campaigns) stay the same */
+    var fe=($("gEmail").value||"").trim();
+    if(!fe){toast("Type your GM email in the Email box first.","warn");return}
+    var fdb=await cloudClient(); if(!fdb||!fbAuth){toast(cloudErr||"Not connected.","warn");return}
+    partyBusy=true; partyErr=""; partyNote=""; renderParty();
+    try{await fbAuth.sendPasswordResetEmail(fe);
+      partyNote="If "+fe+" has a GM account, a password reset link is on its way. Check your inbox (and spam), set a new password, then sign in here.";}
+    catch(err){partyErr=err&&err.code==="auth/invalid-email"?"That email address doesn\u2019t look right.":err&&err.code==="auth/too-many-requests"?"Too many tries. Wait a few minutes, then try again.":cloudMsg(err,"email")}
+    partyBusy=false; renderParty(); return;
+  }
+  if(t.id==="gSignIn"||t.id==="gSignUp"){partyNote="";
     var em=($("gEmail").value||"").trim(), pw=$("gPass").value||"";
     if(!em||!pw){toast("Enter an email and password.","warn");return}
     var db=await cloudClient(); if(!db){toast(cloudErr||"Not connected.","warn");return}
@@ -4534,6 +4567,87 @@ function spellStat(lib){
   if(!st){var om=String((lib&&lib.description)||"").match(/\b(Str|Int|Con|Dex|Cha)[a-z]*-Opposed/i);if(om)st=G_STATS[om[1].toLowerCase()]}
   return st||"int";
 }
+/* ================= charts: roll tables in the Library =================
+   One result per line: "1-3: text", "4: text", or just "text" (numbered in
+   order). Die: "1d8", "2d6", "d100"; blank means one row each. Put a Library
+   name in double brackets to link it: [[Healing Potion]], [[Burned]],
+   [[Jersey Meatball]], or another chart. */
+function parseChart(ch){
+  var rows=[], next=1;
+  String(ch.rows||"").split(/\n/).forEach(function(line){
+    var t=line.trim(); if(!t)return;
+    var m=t.match(/^(\d+)(?:\s*[-\u2013\u2014]\s*(\d+))?\s*[:.)|]\s*(.*)$/);
+    if(m){var a=+m[1],b=m[2]?+m[2]:a;rows.push({min:Math.min(a,b),max:Math.max(a,b),text:m[3]});next=Math.max(a,b)+1}
+    else{rows.push({min:next,max:next,text:t});next++}
+  });
+  var top=rows.reduce(function(a,r){return Math.max(a,r.max)},0);
+  var die=String(ch.die||"").trim(); if(/^d\d+/i.test(die))die="1"+die;
+  return {rows:rows,die:die||(top?"1d"+top:""),top:top};
+}
+var CHART_KINDS=[["items","Item"],["debuffs","Debuff"],["mobs","Mob"],["charts","Chart"],["spells","Spell"]];
+function chartLinks(text){
+  var out=[], re=/\[\[([^\]]+)\]\]/g, m;
+  while((m=re.exec(String(text||"")))){
+    var nm=m[1].trim(), hit=null;
+    CHART_KINDS.some(function(k){var e=gLib(k[0],nm);if(e){hit={name:e.name,kind:k[0],label:k[1],entry:e};return true}return false});
+    out.push(hit||{name:nm,kind:"",label:"Not in your Library",entry:null});
+  }
+  return out;
+}
+function chartText(text){return String(text||"").replace(/\[\[([^\]]+)\]\]/g,"$1")}
+function encAddMob(lib,n){
+  n=n||1; var same=S.encounter.entries.filter(function(x){return x.libId===lib.id}).length;
+  for(var i=0;i<n;i++)S.encounter.entries.push({id:uid(),libId:lib.id,name:lib.name+(n>1||same?" "+(same+i+1):""),
+    tier:lib.tier,size:lib.size,level:lib.level,evade:lib.evade,move:lib.move,dr:lib.dr,hbSlots:lib.hbSlots||1,hbValue:lib.hbValue||0,
+    attacks:lib.attacks,mobNotes:lib.notes||"",lost:0,raw:"",mode:"normal",note:""});
+}
+function rollChart(ch,depth){
+  depth=depth||0; if(depth>5){toast("That chart links back to itself too many times.","warn");return}
+  var P=parseChart(ch);
+  if(!P.rows.length){toast(ch.name+" has no results yet. Add some lines in the Library.","warn");return}
+  var rx=rollExpr(P.die); if(!rx){toast("Can\u2019t roll \u201c"+P.die+"\u201d. Try something like 1d8.","warn");return}
+  var row=P.rows.find(function(r){return rx.total>=r.min&&rx.total<=r.max});
+  var res=row?chartText(row.text):"No result for "+rx.total+" on this chart.", links=row?chartLinks(row.text):[];
+  recordRoll(active(),{label:"Chart: "+ch.name,total:rx.total,nat:0,detail:rx.text+" \u2192 "+res.slice(0,200),tier:"",mode:"normal"});
+  var crawlers=S.characters, mobs=S.encounter.entries;
+  function body(){
+    var h='<h2 style="font-size:20px;margin-bottom:4px">'+esc(ch.name)+'</h2>'
+      +'<div class="hint" style="margin-bottom:8px">'+esc(P.die)+': '+esc(rx.text)+(row&&row.min!==row.max?' (row '+row.min+'\u2013'+row.max+')':'')+'</div>'
+      +'<div class="dbnow" style="border-color:var(--amber);font-size:15px"><b>'+esc(res)+'</b></div>';
+    links.forEach(function(l,i){
+      h+='<div class="mrow"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="flex:1">'+esc(l.name)+'</b><span class="chip">'+esc(l.label)+'</span>';
+      if(l.kind==="items"||l.kind==="debuffs"){
+        var opts=crawlers.map(function(c){return '<option value="c:'+c.id+'"'+(c.id===S.activeId?" selected":"")+'>'+esc(c.name||"Crawler")+'</option>'}).join("")
+          +(l.kind==="debuffs"?mobs.map(function(m,k){return '<option value="m:'+k+'">'+esc(m.name)+' (mob)</option>'}).join(""):"");
+        h+=opts?'<select data-lto="'+i+'" style="max-width:170px">'+opts+'</select><button class="btn sm pri" data-lgo="'+i+'">'+(l.kind==="items"?"Give":"Apply")+'</button>':'<span class="hint">No crawlers here to '+(l.kind==="items"?"give it to":"apply it to")+'.</span>';
+      }
+      if(l.kind==="mobs")h+='<button class="btn sm pri" data-lgo="'+i+'">Add to the encounter</button>';
+      if(l.kind==="charts")h+='<button class="btn sm pri" data-lgo="'+i+'">Roll it</button>';
+      h+='</div>'+(l.done?'<div class="hint">'+esc(l.done)+'</div>':'')+'</div>';
+    });
+    return h+'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="chAgain">Roll again</button><button class="btn pri" id="chDone">Done</button></div>';
+  }
+  function wire(){
+    $("chDone").addEventListener("click",closeModal);
+    $("chAgain").addEventListener("click",function(){rollChart(ch,depth)});
+    $("modalBox").querySelectorAll("[data-lgo]").forEach(function(b){b.addEventListener("click",function(){
+      var l=links[+b.dataset.lgo], sel=$("modalBox").querySelector('[data-lto="'+b.dataset.lgo+'"]'), to=sel?sel.value:"";
+      if(l.kind==="charts"){rollChart(l.entry,depth+1);return}
+      if(l.kind==="mobs"){encAddMob(l.entry,1);save();renderEnc();l.done="Added to the encounter.";recordUse(active(),"Chart result: "+l.name+" joins the fight",ch.name)}
+      if(l.kind==="items"&&to){var c=crawlers.find(function(x){return "c:"+x.id===to});if(c){ensureInv(c);
+        var same=c.inventory.find(function(x){return x.where==="inv"&&x.libId===l.entry.id});
+        if(same)same.qty=(parseInt(same.qty,10)||1)+1; else c.inventory.push(itemFromLib(l.entry,1));
+        syncInv(c);save();renderInv();l.done="Given to "+(c.name||"the crawler")+".";recordUse(c,"Got "+l.name,"from "+ch.name)}}
+      if(l.kind==="debuffs"&&to){
+        if(to.indexOf("c:")===0){var cc=crawlers.find(function(x){return "c:"+x.id===to});if(cc){cc.debuffs=cc.debuffs||[];addDebuff(cc.debuffs,l.entry.name,cc);save();renderSheet();l.done=(cc.name||"The crawler")+" is now "+l.name+".";recordUse(cc,"Now "+l.name,"from "+ch.name)}}
+        else{var mm=mobs[+to.slice(2)];if(mm){mm.debuffs=mm.debuffs||[];addDebuff(mm.debuffs,l.entry.name);save();renderEnc();l.done=mm.name+" is now "+l.name+"."}}
+      }
+      openModal(body()); wire();
+    })});
+  }
+  openModal(body()); wire();
+}
+
 /* ================= companions: pets, mounts and minions =================
    Core Rulebook, Chapter 4 (Pets & Mounts), in the manager's own words:
    - every pet starts at Level 1 with the same base stats; Health Bar slots =
@@ -6427,6 +6541,7 @@ function renderEnc(){
     +S.library.mobs.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+'</option>'}).join("")
     +'</select>'
     +'<input type="number" id="encQty" value="1" min="1" max="12" style="width:64px" title="How many">'
+    +(S.library.charts.length?'<select id="encChart" style="max-width:170px"><option value="">Roll a chart\u2026</option>'+S.library.charts.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join("")+'</select>':'')
     +'<label class="hint" style="display:flex;gap:4px;align-items:center">Floor <input type="number" id="encFloor" value="'+esc(E.floor||encFloor())+'" min="1" style="width:56px" title="F in damage like 1d6+F"></label>'
     +'<button class="btn sm pri" id="encRound">End round</button>'
     +'<button class="btn sm dgr" id="encClear">End fight</button></div>';
@@ -6519,6 +6634,7 @@ $("encBody").addEventListener("input",function(e){
 });
 $("encBody").addEventListener("change",function(e){
   var t=e.target;
+  if(t.id==="encChart"&&t.value){var chy=S.library.charts.find(function(x){return x.id===t.value});t.value="";if(chy)rollChart(chy);return}
   if(t.id==="encPick"){
     var lib=S.library.mobs.find(function(x){return x.id===t.value});
     if(!lib)return;
@@ -6598,7 +6714,8 @@ var FIELDS={
          ["abilities","Special abilities"],["drawbacks","Drawbacks"],["page","Page"]],
   classes:[["name","Name"],["classType","Class type"],["prereq","Prerequisites"],
            ["statBonus","Stat bonuses"],["skillBonus","Skill bonuses"],
-           ["abilities","Special abilities"],["drawbacks","Drawbacks"],["page","Page"]]
+           ["abilities","Special abilities"],["drawbacks","Drawbacks"],["page","Page"]],
+  charts:[["name","Name"],["type","Type"],["die","Die"],["rows","Results"],["notes","Notes"]]
 };
 function renderLib(){
   var list=S.library[libKind]||[];
@@ -6630,6 +6747,7 @@ function renderLib(){
       if(e.prereq)meta.push("prereq: "+e.prereq)}
     if(libKind==="classes"){if(e.classType)meta.push(e.classType);if(e.statBonus)meta.push(e.statBonus);
       if(e.prereq)meta.push("prereq: "+e.prereq)}
+    if(libKind==="charts"){var pc=parseChart(e);if(e.type)meta.push(e.type);if(pc.die)meta.push(pc.die);meta.push(pc.rows.length+" result"+(pc.rows.length===1?"":"s"))}
     if(e.page)meta.push("p. "+e.page);
     return '<div class="libitem" data-id="'+e.id+'"><div>'
       +'<span class="nm">'+esc(e.name)+'</span>'
@@ -6637,6 +6755,7 @@ function renderLib(){
       +(meta.length?'<div class="meta">'+esc(meta.join(" · "))+'</div>':'')
       +(e.description?'<div class="desc">'+esc(e.description)+'</div>':'')
       +'</div><div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">'
+      +(libKind==="charts"?'<button class="btn sm pri" data-l="rollchart">Roll</button>':'')
       +(libKind==="spells"?'<button class="btn sm" data-l="astome" title="Put a spellbook of this spell in the active crawler\u2019s Inventory">As spellbook</button><button class="btn sm" data-l="asscroll" title="Put a scroll of this spell in the active crawler\u2019s Inventory">As scroll</button>':'')
       +'<button class="btn sm" data-l="edit">Edit</button>'
       +'<button class="btn sm dgr" data-l="del">×</button></div></div>';
@@ -6653,6 +6772,7 @@ $("libSearch").addEventListener("input",function(){libQuery=this.value;renderLib
 $("libList").addEventListener("click",function(e){
   var item=e.target.closest(".libitem"); if(!item)return;
   var id=item.dataset.id, act=e.target.dataset.l;
+  if(act==="rollchart"){var chx=S.library.charts.find(function(x){return x.id===id});if(chx)rollChart(chx);return}
   if(act==="astome"||act==="asscroll"){var spx=S.library.spells.find(function(x){return x.id===id});if(spx)giveSpellAs(spx,act==="astome"?"tome":"scroll");return}
   if(act==="del"){
     var ent=S.library[libKind].find(function(x){return x.id===id});
@@ -6669,14 +6789,15 @@ $("libNew").addEventListener("click",function(){libForm(null)});
 function libForm(entry){
   var isNew=!entry;
   var e=entry||{id:uid(),homebrew:true};
-  var singular={skills:"skill",spells:"spell",items:"item",debuffs:"debuff",mobs:"mob",backgrounds:"background",races:"race",classes:"class"}[libKind];
+  var singular={skills:"skill",spells:"spell",items:"item",debuffs:"debuff",mobs:"mob",backgrounds:"background",races:"race",classes:"class",charts:"chart"}[libKind];
   var h='<h2 style="font-size:22px;margin-bottom:4px">'+(isNew?"New":"Edit")+' '+singular+'</h2>'
     +'<p class="hint" style="margin-bottom:14px">Only the name is required — fill in whatever you actually use at the table.</p>'
+    +(libKind==="charts"?'<p class="hint" style="margin:-8px 0 14px">One result per line, like <b>1-3: A [[Healing Potion]]</b> or <b>4: Nothing happens</b>. Lines without numbers count up in order. <b>Die</b> is optional (1d8, 2d6, d100); blank means one row each. Put a Library name in [[double brackets]] to link an item, debuff, mob, spell or another chart. <b>Type</b> is up to you: shop list, effects, grinding, outcomes, reference.</p>':'')
     +'<div class="grid g2">';
   FIELDS[libKind].forEach(function(f){
     var big=(f[0]==="attacks"||f[0]==="description"||f[0]==="up5"||f[0]==="up10"||f[0]==="up15"
       ||f[0]==="limitations"||f[0]==="notes"||f[0]==="abilities"||f[0]==="drawbacks"
-      ||f[0]==="statBonus"||f[0]==="skillBonus");
+      ||f[0]==="statBonus"||f[0]==="skillBonus"||f[0]==="rows");
     h+='<div class="f"'+(big?' style="grid-column:1/-1"':'')+'>'
       +'<label class="lab">'+f[1]+'</label>'
       +(big?'<textarea id="lf_'+f[0]+'">'+esc(e[f[0]]||"")+'</textarea>'
@@ -6799,7 +6920,7 @@ $("impFile").addEventListener("change",function(){
       if(d.characters){var nu=0,na=0;d.characters.forEach(function(c){putChar(c)==="updated"?nu++:na++});
         msg.push(na+" crawler"+(na===1?"":"s")+" added"+(nu?", "+nu+" updated":""))}
       if(d.library){
-        ["skills","spells","items","debuffs","mobs","backgrounds","races","classes"].forEach(function(k){
+        ["skills","spells","items","debuffs","mobs","backgrounds","races","classes","charts"].forEach(function(k){
           (d.library[k]||[]).forEach(function(e){
             var ex=S.library[k].find(function(x){return x.name.toLowerCase()===(e.name||"").toLowerCase()});
             if(ex)Object.assign(ex,e,{id:ex.id}); else{e.id=e.id||uid();S.library[k].push(e)}
@@ -6819,7 +6940,7 @@ $("wipe").addEventListener("click",function(){
     "Erase everything",async function(){
       clearTimeout(saveTimer);   /* a queued save would rewrite the file we just removed */
       S={characters:[],activeId:null,encounter:{round:1,entries:[]},
-         library:{skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[]}};
+         library:{skills:[],spells:[],items:[],debuffs:[],mobs:[],backgrounds:[],races:[],classes:[],charts:[]}};
       await store.del(KEY); setSave("erased");
       renderRoster();renderLib();show("roster");
       toast("Everything erased.");
