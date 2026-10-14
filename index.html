@@ -251,6 +251,10 @@ select{cursor:pointer}
 .comp{margin-top:10px}.catk{display:flex;gap:6px;align-items:center;padding:4px 0;border-top:1px solid var(--hair);flex-wrap:wrap}
 .cstats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:8px}
 .cstats .f{min-width:0}.cstats input{width:100%;min-width:0;text-align:center}.cstats .btn{margin-top:4px;width:100%}
+.spcard{border:1px solid var(--hair);border-radius:8px;padding:8px 10px;margin-top:8px}.spcard.empty{border-style:dashed}
+.pat0{color:var(--rust)}.pat1{color:var(--amber)}.pat2{color:var(--teal)}.pat3{color:var(--teal);font-weight:800}
+.tfbar{border:1px dashed var(--amber);border-radius:10px;padding:10px 12px}.tfbar.on{border-style:solid;box-shadow:0 0 14px var(--glow);background:var(--panel2)}
+.pu{border:1px dashed var(--mortar);border-radius:8px;padding:8px 10px;margin-top:6px}.pu.on{border:1px solid var(--amber);box-shadow:0 0 10px var(--glow)}
 </style>
 </head>
 <body>
@@ -267,6 +271,7 @@ select{cursor:pointer}
       <button role="tab" data-v="create" aria-selected="false">Create</button>
       <button role="tab" data-v="sheet" aria-selected="false">Sheet</button>
       <button role="tab" data-v="inventory" aria-selected="false">Inventory</button>
+      <button role="tab" data-v="workshop" aria-selected="false">Workshop</button>
       <button role="tab" data-v="encounter" aria-selected="false">Encounter</button>
       <button role="tab" data-v="party" aria-selected="false">Party</button>
       <button role="tab" data-v="library" aria-selected="false">Library</button>
@@ -307,6 +312,7 @@ select{cursor:pointer}
 
   <!-- INVENTORY -->
   <section class="view" id="v-inventory"><div id="invBody"></div></section>
+  <section class="view" id="v-workshop"><div id="wsBody"></div></section>
 
   <!-- ENCOUNTER -->
   <section class="view" id="v-encounter"><div id="encBody"></div></section>
@@ -425,12 +431,34 @@ function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 
 function drTotal(c){
-  return (parseInt(c.armor,10)||0)+(parseInt(c.drBuffs,10)||0);
+  return (parseInt(c.armor,10)||0)+(parseInt(c.drBuffs,10)||0)+(c.transformed?(transformInfo(c)||{}).dr||0:0);
 }
 function evadeTotal(c){
   var m=statMod(c.enh.dex||c.stats.dex);
   if(!m)return null;
-  return m+(parseInt(c.evadeBuffs,10)||0);
+  return m+(parseInt(c.evadeBuffs,10)||0)+(c.transformed?(transformInfo(c)||{}).evade||0:0)+puEvade(c);
+}
+/* a class (or race) with a "Transformation Sequence": its numbers come from its
+   own text, so editing the class changes what transforming does */
+function transformInfo(c){
+  if(!c||typeof gClassOf!=="function")return null;
+  var srcs=[gClassOf(c)], r=c.raceId&&S.library.races.find(function(x){return x.id===c.raceId}); if(r)srcs.push(r);
+  var out=null;
+  srcs.forEach(function(e){
+    if(!e||out)return; var t=String(e.abilities||""), dw=String(e.drawbacks||"");
+    var line=(t.split(/\n/).filter(function(l){return /Transformation Sequence/i.test(l)})[0])||""; if(!line)return;
+    var n=function(re,src){var m=(src||line).match(re);return m?+m[1]:0};
+    out={evade:n(/\+(\d+) Evade/i),dr:n(/(\d+) extra DR/i)||n(/\+(\d+) DR\b/i),less:n(/spells cost (\d+) less Mana/i),
+      more:n(/until you transform, your spells cost (\d+) more Mana/i,dw),pop:n(/first time you transform each Floor[^.]*?gain (\d+) Popularity/i),
+      stealth:/Disadvantage on Stealth checks while transformed/i.test(dw+" "+t),from:e.name};
+  });
+  return out;
+}
+function spellCost(c,base){
+  var ti=transformInfo(c); if(!ti||!base)return {cost:base,why:""};
+  if(c.transformed&&ti.less)return {cost:Math.max(1,base-ti.less),why:ti.less+" less, transformed"};
+  if(!c.transformed&&ti.more)return {cost:base+ti.more,why:ti.more+" more until you transform"};
+  return {cost:base,why:""};
 }
 function statMod(v){
   v=parseInt(v,10); if(!v||v<1)return null;
@@ -568,7 +596,14 @@ function save(){
    has (including their own edits to these). Keep the book's own material
    out of here — this file sits on a public link. */
 var DEFAULT_LIBRARY={
-charts:[
+charts:[{
+ "name": "New Sponsors (homebrew)",
+ "type": "Sponsors",
+ "die": "1d8",
+ "homebrew": true,
+ "rows": "1: Glorp Snack Collective (Snack Foods): You eat strange dungeon food on camera.\n2: Chucklevault Media (Comedy Media): You’re funny, mostly by accident.\n3: Ironbelly Arms & Picnics (Arms Manufacturing): You hit things with very big weapons.\n4: Velvet Vanity Automata (Beauty Robotics): You look fabulous while bleeding.\n5: Saint Fizzwick’s Tonics (Pharma and Med Tech): You survive things you really shouldn’t.\n6: Bonecart Freight (Shipping and Logistics): You move fast and never stop.\n7: The Hollowcrown Trust (Old Money): Nobody knows, and they won’t say.\n8: Madame Petunia Glasswick (Wealthy Socialite): Your pet is adorable.",
+ "notes": "Invented companies, written as Name (Type): why they sponsor you, so Roll a Sponsor can fill a slot. Make your own chart with “Sponsor” in its name, or type in the rulebook’s Table 54."
+},
  {
   "name": "Garden State Turnpike Encounters",
   "type": "Encounters",
@@ -829,6 +864,32 @@ spells:[
   "description": "“Kilometers of rock never stopped you. This won’t either.”\n\nYou summon a giant mining drill and steer it for the duration. As an Action, drive it into a target within 5ft: make a Spell Attack Skill Check against its Evade, and on a hit it deals the damage. It bores through 1d6 ft of most surfaces per minute (stone, wood, metal), but not magical barriers.\n\nHell Diver class spell.",
   "up5": "Lasts Dex + Floor + 2 minutes.\nRank 10: Ignores Resistance to Piercing damage.\nRank 15: Drills 1d12 ft per minute.",
   "page": ""
+ },
+ {
+  "name": "Five-Finger Discount",
+  "type": "Attack, Necrotic, Constitution",
+  "mana": "20",
+  "range": "Touch (all five fingers of one bare hand)",
+  "duration": "Instant",
+  "cooldown": "",
+  "damage": "1d10 + Con Necrotic",
+  "description": "“Everything you touch turns to dust. Try not to scratch your nose.”\n\nTouch a target with all five fingers of one bare hand. Gloves, gauntlets, a barrier, or anything else that stops full skin contact blocks the Spell, and it doesn’t work on liquids, gases or incorporeal creatures. Make a Spell Attack Skill Check against the target’s Evade. On a hit it takes the damage, and Decayed Wound: it can’t regain Health Bar slots until the start of your next turn.\n\nA mundane object up to the size of a lock, a chain or a doorknob simply crumbles at your touch. Magical items and artifacts only crumble if your GM agrees.\n\nSS-rarity Spell: found, not chosen. It isn’t offered at character creation.",
+  "up5": "Crumble: +1d10 base damage, and it deals maximum damage against objects and structures. Touch a wall, door, floor or other structure to dissolve up to a 10ft cube of mundane material connected to your hand. When you hit a creature, you can deal no damage and instead destroy one mundane weapon, shield or piece of armor it’s wearing or carrying.\nRank 10: Decay Spread: +1d10 base damage. A creature you hit loses 1 maximum Health Bar slot until it finishes a Long Rest; a creature whose maximum reaches 0 turns to dust. While you keep contact (this ends the moment you let go): a creature you’re holding takes the damage again at the start of each of your turns, or, with your hand on the ground, the decay spreads 15ft further through connected matter at the start of each of your turns, and creatures standing on it must Evade or take the damage.\nRank 15: Awakening: +1d10 base damage, and any skin contact works: one finger, a palm, even a foot. The spread reaches 30ft each turn, and you can choose up to your Con Mod creatures in it to leave unharmed. Ground Collapse: once per Long Rest, touch the ground to destroy its support in a 15ft radius; everyone in it must Evade or take 3d8 Bludgeoning damage and gain the Take Down Debuff.",
+  "page": "",
+  "homebrew": true
+ },
+ {
+  "name": "Heartlight Beam",
+  "type": "Attack, Radiant, Charisma",
+  "mana": "10",
+  "range": "60 feet",
+  "duration": "Instant",
+  "cooldown": "",
+  "damage": "1d8 + Cha Radiant",
+  "description": "“In the name of love, friendship, and dramatic camera angles!”\n\nStrike a pose and fire a beam of pure sparkling feelings at a target you can see within range. Make a Spell Attack Skill Check against its Evade; on a hit it takes the damage.\n\nMagical Girl class spell.",
+  "up5": "+1d8 base damage, and one ally within 30ft of the target recovers 1 Health Bar slot.\nRank 10: +1d8 base damage, and you can split the beam between two targets (one Spell Attack each).\nRank 15: +1d8 base damage, and every ally within 10ft of you loses one Debuff of their choice.",
+  "page": "",
+  "homebrew": true
  }
 ],
 /* The Garden State, Floor 1 — from floor-1-garden-state.md */
@@ -1168,6 +1229,50 @@ mobs:[
   "attacks": "Signature Pen: 14+F to hit, 1d8+2 Piercing, 5ft range. Paper Trail (passive): once per round, directs one ally Mob within 15ft to make an additional attack as a free action. The Fix Was In (signature, once per fight): negates one crawler success entirely — a hit becomes a miss, or a failed check becomes a success for The Chairman.",
   "notes": "Weakness — On the Record: a successful Investigation or Sleight of Hand check (Opposed vs Int) to steal the paperwork mid-fight strips The Fix Was In for the rest of the encounter. Appears at the end of Exit 4, after Mulberry Row is settled.",
   "page": ""
+ },
+ {
+  "name": "Red Orc",
+  "tier": "Mob",
+  "size": "Medium (4)",
+  "creature": "Humanoid (Orc)",
+  "level": "4",
+  "surprise": "11+F",
+  "evade": "12+F",
+  "move": "20+S",
+  "dr": "1",
+  "hbSlots": "4",
+  "hbValue": "2",
+  "str": "5",
+  "int": "2",
+  "con": "4",
+  "dex": "3",
+  "cha": "2",
+  "attacks": "Greataxe: 14+F to hit, 1d12+2 Slashing, 5ft range. Javelin: 13+F to hit, 1d6+2 Piercing, 5ft melee or thrown 30ft. Cursed Fury (signature): when a crawler within 60ft that it can see damages it, it has Advantage on Attack Skill Checks against that crawler until the end of its next turn. Savage Momentum: when it drops a crawler to 0% Health Bar on its turn, it immediately moves up to half its Move and makes one more melee Attack.",
+  "notes": "Unyielding Rage: Advantage on checks against the Terrified, Paralyzed and Stunned Debuffs. Darkvision. Crimson skin, burning eyes, near extinct: found in scattered warbands of 2 to 4, or wandering alone. Never retreats, surrenders or negotiates; Persuasion against one is made with Disadvantage. Other orcs, dwarves and elves attack Red Orcs on sight.",
+  "page": "",
+  "homebrew": true
+ },
+ {
+  "name": "Goblin Knight",
+  "tier": "Elite",
+  "size": "Small (2)",
+  "creature": "Humanoid (Goblinoid)",
+  "level": "7",
+  "surprise": "13+F",
+  "evade": "15+F",
+  "move": "20+S",
+  "dr": "3",
+  "hbSlots": "6",
+  "hbValue": "3",
+  "str": "6",
+  "int": "3",
+  "con": "6",
+  "dex": "3",
+  "cha": "3",
+  "attacks": "Longsword: 15+F to hit, 1d8+3 Slashing, 5ft range. Attacks twice each round. Shield Bash: at the start of its turn roll 1d6; on a 5 or 6 it can Shield Bash: 15+F to hit, 1d6+3 Bludgeoning, 5ft range, and the target gains the Take Down Debuff unless it makes a Difficulty 14 Strength Check. War Cry (once per day): allies of its choice within 30ft that can hear it get Advantage on their next Attack and ignore the next 5 damage they take. Second Wind (once per fight): recovers 1 Health Bar slot without using its Action. Parry: once per round, +4 Evade against one melee Attack it can see while it has its shield.",
+  "notes": "Resistance to Bludgeoning, Piercing and Slashing damage from mundane (non-magical) weapons while it has its shield. Defensive Stance: at the start of its turn it can plant its feet: Move 0, +1 Evade, and Advantage against being shoved or knocked down, until its next turn. Martial Discipline: Advantage on checks against the Terrified Debuff. Nimble Escape: it can Disengage or Hide without using its Action. Shield Wall: +1 Evade while next to an ally carrying a shield. Darkvision. Optional traits (GM’s choice, for a tougher Knight): Commanding Strike (without using its Action, an ally within 30ft makes a weapon Attack); Tactical Move (when an ally within 10ft moves, it can move up to 15ft without provoking); Iron Wall (with its shield, allies within 5ft get +2 Evade); Duelist’s Precision (its melee Attacks are Critical Hits on a natural 19 or 20).",
+  "page": "",
+  "homebrew": true
  }
 ],
 /* Races */
@@ -1261,6 +1366,30 @@ races:[
   "abilities": "Earth-Based.\n\nCongratulations. You’re a raccoon. But not just any raccoon. You’re a Highly Evolved Trash Panda, which means millions of years of evolution have finally perfected what nature always intended: a tiny, nocturnal garbage burglar with opposable thumbs and access to explosives. You’re tough, clever, excellent at turning worthless junk into useful equipment, and surprisingly dangerous when something gets within biting distance. Just remember, no matter how intelligent you become, somewhere deep inside your little trash-panda brain is a voice screaming, “Open the fucking container.”\n\n[3 pt] Size: Small (2).\n[2 pt] +2 to Constitution.\n[2 pt] +2 to either Dexterity or Intelligence.\n[1 pt] Gain access to the Desperado Club.\n[6 pt] +3 Dumpster Diving (Scrounger) Skill.\n[1 pt] You can see in total darkness.\n[4 pt] You are immune to Poison.\n[1 pt] You automatically gain a Free Room in Saferooms.\n[4 pt] +1 to all Skills involving crafting gear from junk: Fabricate, Repair, Salvage, Engineering and Improvised Explosive Device.\n[2 pt] Gain a Bite Attack at Rank 3 that deals 1d6 + Dexterity Piercing damage. Add another d6 at Rank 5, 10, and 15. Rank only increases upon descending to a new Floor.\n\nBuild: 26 of 26 points (25 base + 1 from drawbacks).",
   "drawbacks": "[+1 pt] −2 to Strength.",
   "page": ""
+ },
+ {
+  "name": "Red Orc",
+  "size": "Medium (4)",
+  "prereq": "",
+  "statBonus": "+5 Strength, +4 Constitution",
+  "skillBonus": "+1 Intimidate, +1 Axe, +1 Endurance",
+  "drBonus": "+1",
+  "abilities": "Your skin is the color of a fresh wound and your eyes never stop burning. The dungeon didn’t make you angry. It just finally gave you somewhere to put it.\n\n[9 pt] +5 Strength, +4 Constitution.\n[6 pt] +1 Intimidate, +1 Axe, +1 Endurance.\n[3 pt] Cursed Fury: when a Mob or crawler within 60ft that you can see damages you, you have Advantage on Attack Skill Checks against it until the end of your next turn.\n[3 pt] Savage Momentum: when you drop a foe to 0% Health Bar on your turn, you can immediately move up to half your Move and make one more melee Attack.\n[2 pt] Unyielding Rage: Advantage on checks against the Terrified, Paralyzed and Stunned Debuffs.\n[2 pt] Scarred Hide: +1 DR.\n[3 pt] Blood Heat: once per day, when you drop below 50% Health Bar, your melee Attacks deal +2 damage for the rest of the fight.\n[1 pt] Darkvision: you can see in total darkness.\n\nBuild: 29 of 29 points (25 base + 4 from drawbacks).",
+  "drawbacks": "[+2 pt] −2 Intelligence.\n[+1 pt] Enemies of All: almost everyone hates Red Orcs on sight. Disadvantage on Persuasion and Good First Impression checks with anyone who isn’t an orc, and some NPCs will call for help just because you walked in.\n[+1 pt] No Rest: the rage won’t let you settle. A Short Rest restores 3 Health Bar slots for you instead of 5.",
+  "page": "",
+  "homebrew": true
+ },
+ {
+  "name": "Pixie",
+  "size": "Tiny (1)",
+  "prereq": "",
+  "statBonus": "+5 Dexterity, +2 Charisma",
+  "skillBonus": "+1 Stealth, +1 Sleight of Hand",
+  "drBonus": "",
+  "abilities": "You are four inches of pure chaos with wings. You’ve never walked anywhere in your life, and you’re not about to start in a dungeon.\n\n[3 pt] Tiny (1) size.\n[7 pt] +5 Dexterity, +2 Charisma.\n[4 pt] +1 Stealth, +1 Sleight of Hand.\n[4 pt] True Flight: you fly at your full Move with no time limit, and you can hover.\n[3 pt] Pixie-Led: once per fight, make an Int-Opposed check against a Mob. On a success, it gets turned around and spends its next Action wandering the wrong way.\n[2 pt] Pixie Dust: once per day, sprinkle an ally. They can fly for 1 minute.\n[3 pt] Fairy Ring: once per day, dance a ring of mushrooms anywhere. Later, you can step into any ring you’ve made on the same Floor and out of another one.\n[4 pt] Twinkle Mend: once per fight, as an Action, flutter around your party trailing sparkles. Every ally within 15ft (including you) recovers 1 Health Bar slot and loses the Blood Trail Debuff.\n[0 pt] Pranks: harmless magical mischief at will. Knot a bootlace, swap two small items, make someone’s voice squeak.\n\nBuild: 30 of 30 points (25 base + 5 from drawbacks).",
+  "drawbacks": "[+2 pt] −2 Strength, −2 Constitution. You’re four inches tall.\n[+2 pt] Cold Iron: damage from iron and steel weapons ignores your DR.\n[+1 pt] Ooh, Shiny!: when you see an unattended shiny object, make a Difficulty 10 Int check or spend your next Action going for it.",
+  "page": "",
+  "homebrew": true
  }
 ],
 /* Class skills */
@@ -1524,6 +1653,17 @@ classes:[
   "abilities": "You were an ordinary kid with a tragic backstory and suspiciously good hair. Then the dungeon happened, and now every fight has a soundtrack only you can hear.\n\n[9 pt] +3 Strength, +3 Constitution, +2 Charisma, +1 Dexterity.\n[10 pt] +3 Unarmed Combat, +1 Taunt, +1 Endurance.\n[3 pt] Signature Move: name your special attack. Once per fight, shout it to double that attack’s damage dice.\n[3 pt] Power of Friendship: once per day, when an ally within 30ft drops below 30% Health Bar, you get +2 on Attack Skill Checks and damage for the rest of the fight.\n[3 pt] Rival: once per floor, declare a Mob or Boss your rival. You have Advantage on attacks against it until it’s beaten, or escapes, which it will.\n[2 pt] Training Arc: at the end of each floor, add 1 to your Skill Advancement Checks for your combat skills.\n[0 pt] Spiky Hair: your hair spikes up and changes color when you’re emotional. You are always emotional.\n[3 pt] Upon entering the Sixth Floor, choose your path and write it in your Floor 6 subclass slot:\n  • Soulblade Reaper: Your weapon holds a sentient spirit with its own name and personality, played by the GM. Track a Bond with it from −3 to 3 in your subclass Details, starting at 0. Naming it, talking to it and honoring its wishes raise the Bond; ignoring it or using another weapon in front of it lower it. Once per fight, call its name to release it: 1d8 extra damage and 10ft reach for the rest of the fight, in an element you choose. At Bond 3 the release adds another 1d8. While the Bond is negative, releasing it takes a Charisma check, and at −3 it refuses.\n  • Shadow-Clone Shinobi: Once per fight, split into 1d4 shadow clones. Each has 1 Health Bar slot, attacks with your Unarmed Combat at a penalty of 2, and vanishes when hit. You have Advantage on Stealth checks. A beast spirit lives inside you: once per day, unleash it for 3 rounds of a 2-point bonus on Attack Skill Checks and Evade, plus a 1d8 claw strike, then you gain the Fatigued Debuff.\n  • Cursed-Fruit Corsair: You ate a cursed fruit. When you take this path, roll a random elemental spell; you know it at Rank 10. From then on you can only use spells of that element, but you have Advantage on Spell Checks with them. You sink like a stone in water.\n  • Golden Rage Warrior: +15 Magic Missile Spell (your ki blast). Once per day, at 50% Health Bar or less, your hair turns gold: a 2-point bonus on Attack Skill Checks and 1d6 extra damage for the rest of the fight, then you gain the Fatigued Debuff. Your Charisma can never go above 5; anything past that is lost.\n\nBuild: 33 of 33 points (30 base + 3 from drawbacks).",
   "drawbacks": "[+1 pt] Screams Attack Names: Disadvantage on Stealth checks in combat.\n[+2 pt] Mid-Fight Flashback: once per fight, the GM can trigger a flashback, and you lose your next Action.",
   "page": ""
+ },
+ {
+  "name": "Magical Girl",
+  "classType": "Mage, Bard",
+  "prereq": "Charisma 10 or higher, and the Power of Friendship Achievement",
+  "statBonus": "+3 Charisma, +2 Dexterity, +2 Intelligence",
+  "skillBonus": "+2 Performance, +1 Taunt; +2 Heartlight Beam Spell",
+  "abilities": "YOU. ARE. FABULOUS! Now there is nothing you can’t achieve with the power of sparkles, friendship, that little “companion” of yours, and an outfit that’s ninety percent ribbons and ten percent questionable life choices!\n\n[7 pt] +3 Charisma, +2 Dexterity, +2 Intelligence.\n[6 pt] +2 Performance, +1 Taunt.\n[4 pt] Transformation Sequence: once per fight, spend an Action to transform while the world politely waits. For the rest of the fight you get +2 Evade and 2 extra DR, and your spells cost 2 less Mana (minimum 1). The first time you transform each Floor, the audience loses its mind: gain 1 Popularity.\n[3 pt] Mascot: a small talking magical creature. It’s a Pet that starts Bonded, and once per session it gives you cryptic advice: the GM answers one yes-or-no question.\n[4 pt] +2 Heartlight Beam Spell (in the Spells library).\n[3 pt] Friendship Speech: once per day, mid-fight, make a speech about friendship. Allies within 30ft who can hear you get Advantage on their next Check, and lose the Terrified Debuff.\n[3 pt] Sparkle Shield: once per round, when an ally within 10ft is attacked, you can make the Evade roll for them.\n[3 pt] Upon entering the Sixth Floor, choose your path and write it in your Floor 6 subclass slot:\n  • Starlight Idol: +2 Performance. Once per Floor, perform a concert for 10 minutes somewhere safe: everyone listening recovers 2 Health Bar slots, then roll a Performance check: on a success you gain 2 Popularity, on a fail you lose 1. While you’re transformed, allies within 30ft add 1 to their Attack Skill Checks.\n  • Celestial Guardian: +2 Dodge. Sparkle Shield reaches any ally within 30ft and works twice per round, and allies within 10ft of you get 1 extra DR while you’re transformed.\n  • Fallen Star: +2 Intimidate. Heartlight Beam turns Necrotic and deals 1d8 more damage, and a target that loses a Health Bar slot to it gains the Woozy Debuff. The audience can’t look away: all Popularity you gain or lose playing to the Audience is doubled.\n  • The Contract: +2 Charisma. Once per Floor, make a wish to your Mascot and the GM grants it within reason: a Gold-tier item, the whole party fully healed, a Debuff lifted, a locked door that was never locked. Then the GM chooses the price: you lose 1 maximum Health Bar slot until the end of the Floor, a Sponsor drops you, or the Mascot asks a favor you can’t refuse.\n\nBuild: 33 of 33 points (30 base + 3 from drawbacks).",
+  "drawbacks": "[+2 pt] Unfinished Transformation: until you transform, your spells cost 2 more Mana.\n[+1 pt] You Sparkle: Disadvantage on Stealth checks while transformed.",
+  "page": "",
+  "homebrew": true
  }
 ],
 /* Conditions the Garden State bosses inflict, so players can track them on their sheets */
@@ -1621,6 +1761,7 @@ function show(v){
     b.setAttribute("aria-selected",String(b.dataset.v===v))});
   if(v==="sheet")renderSheet();
   if(v==="inventory")renderInv();
+  if(v==="workshop")renderWorkshop();
   if(v==="library")renderLib();
   if(v==="encounter")renderEnc();
   if(v==="roster")renderRoster();
@@ -1775,7 +1916,7 @@ function rollAllStages(){
 /* Skills and spells a class or race grants ("Clown College Alumni class
    skill", "Tooth Fairy race spell") come with that class or race, so they
    aren't offered at character creation. */
-function classOrRaceOnly(x){return /\b(class|race) (skill|spell)\b/i.test((x&&x.description)||"")}
+function classOrRaceOnly(x){return /\b(class|race) (skill|spell)\b|isn.t offered at character creation/i.test((x&&x.description)||"")}
 function combatPool(kind,animal){
   if(kind==="spell"){
     var open=S.library.spells.filter(function(sp){return !classOrRaceOnly(sp)});
@@ -2556,7 +2697,9 @@ function partyDetail(row){
   var prose=[["Racial abilities",c.racialAbilities],["Class abilities",c.classAbilities],
     ["Past trauma",c.trauma],["Loose end",c.looseEnd],["Regret",c.regret],["Off the table",c.lines],
     ["Deity",c.deity],["Notes",c.notes],["Level log",c.levelLog]].filter(function(p){return p[1]&&String(p[1]).trim()});
-  (c.sponsors||[]).forEach(function(sp,i){if(sp&&String(sp).trim())prose.push(["Sponsor "+(i+1),sp])});
+  (c.sponsors||[]).forEach(function(sp,i){if(sp&&String(sp).trim()){var sd=(c.sponsorData||[])[i]||{};
+    prose.push(["Sponsor "+(i+1),sp+([sd.type,sd.tier?sd.tier+" boxes":"",sd.patience!=null?PATIENCE[sd.patience]:""].filter(Boolean).length?" ("+[sd.type,sd.tier?sd.tier+" boxes":"",sd.patience!=null?PATIENCE[sd.patience]:""].filter(Boolean).join(", ")+")":"")
+      +((sd.demands||[]).filter(function(x){return x.status==="open"}).length?"\nDemands: "+sd.demands.filter(function(x){return x.status==="open"}).map(function(x){return x.text}).join("; "):"")])}});
   prose.forEach(function(p){
     h+='<div class="bar" style="margin-top:14px"><h3>'+esc(p[0])+'</h3></div><div class="ro">'+esc(p[1])+'</div>';
   });
@@ -3503,6 +3646,12 @@ function renderSheet(){
     +sfield(c,"viewers","Viewers")+sfield(c,"followers","Followers")
     +'</div></div>';
   h+=popSectionHtml(c);
+  h+=powerupsSection(c);
+  var tfx=transformInfo(c);
+  if(tfx)h+='<div class="sec tfbar'+(c.transformed?" on":"")+'"><div class="ihead"><h3 style="flex:1">'+(c.transformed?"Transformed!":"Transformation")+'</h3>'
+    +(c.transformed?'<button class="btn sm" id="tfOff">Transform back</button>':'<button class="btn pri" id="tfOn">Transform!</button>')+'</div>'
+    +'<div class="hint">'+esc([tfx.evade?"+"+tfx.evade+" Evade":"",tfx.dr?"+"+tfx.dr+" DR":"",tfx.less?"spells cost "+tfx.less+" less Mana":""].filter(Boolean).join(", "))
+    +(c.transformed?"":(tfx.more?". Until then, spells cost "+tfx.more+" more Mana":""))+(c.transformed&&tfx.stealth?". Stealth checks have Disadvantage: you sparkle":"")+'. Once per fight; it ends when the fight does.</div></div>';
 
   var lvl=parseInt(c.level,10)||1, pts=parseInt(c.statPoints,10)||0, fl=c.floor||1;
   var tutorial=fl<3;
@@ -3833,15 +3982,7 @@ function renderSheet(){
     out+='</div>';
     return out;
   };
-  h+='<div class="sec">'
-    +rig("pet","Pet",[["value","HB slot value"],["level","Level"],["dr","DR"],["evade","Evade"],
-                      ["move","Move"],["size","Size"],["str","Str"],["int","Int"],["con","Con"],
-                      ["dex","Dex"],["cha","Cha"],["atk1","Attack"],["atk2","Attack"],["special","Special"]],
-        "a pet crawler, not one riding in a carrier")
-    +rig("mount","Mount / vehicle",[["value","HB slot value"],["size","Size"],["occupants","Occupants"],
-                                    ["move","Move"],["dr","DR"],["accessories","Accessories"]],
-        "built or looted transport")
-    +'</div>';
+  /* (the old paper-sheet Pet and Mount / vehicle blocks now live in Companions) */
 
   /* ---- race, class, sponsors ---- */
   h+='<div class="sec"><div class="bar"><h3>Abilities & backing</h3><span class="sp"></span>'
@@ -3849,12 +3990,8 @@ function renderSheet(){
     +sarea(c,"racialAbilities","Racial abilities")
     +sarea(c,"classAbilities","Class abilities")
     +'</div>';
-  h+='<div class="grid g3" style="margin-top:12px">';
-  for(var sp=0;sp<3;sp++){
-    h+='<div class="f"><span class="lab">Sponsor '+(sp+1)+'</span>'
-      +'<textarea data-spon="'+sp+'">'+esc(c.sponsors[sp]||"")+'</textarea></div>';
-  }
-  h+='</div></div>';
+  h+='</div>';
+  h+=sponsorSection(c);
 
   /* ---- standing in the dungeon ---- */
   h+='<div class="sec"><div class="bar"><h3>Standing</h3></div><div class="grid g3">'
@@ -4322,6 +4459,10 @@ function rollCheck(c,label,mods,kind){
   var dm=c&&kind?debuffRollMods(c,kind):{mods:[],dis:false,why:[],consume:[],dexOff:false,notes:[]};
   if(dm.dexOff)mods=mods.map(function(m){return m.l==="DEX"?{l:"DEX ("+dm.dexOff+": not added)",v:0,keep:true}:m});
   mods=mods.concat(dm.mods);
+  if(c&&kind==="attack")mods=mods.concat(puAttackMods(c));
+  if(c&&c.changed&&kind==="check"){var chi=changeInfo(c);if(chi&&chi.dis.some(function(n){return new RegExp("^"+n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b","i").test(label)})){dm.dis=true;dm.why.push("the Change")}}
+  var tfi=c&&c.transformed&&kind==="check"&&/^Stealth\b/i.test(label)?transformInfo(c):null;
+  if(tfi&&tfi.stealth){dm.dis=true;dm.why.push("you sparkle (transformed)")}
   var cam=c&&kind&&DICE.cam&&!DICE.camHold?DICE.cam:null;
   var mode=DICE.mode; if(dm.dis||cam)mode=mode==="adv"?"normal":"dis";
   var a=rnd(20), b=mode!=="normal"?rnd(20):null;
@@ -4378,7 +4519,7 @@ function rollAt(x){var a=x&&x.at; if(!a)return Date.now(); if(typeof a==="number
 function rollItem(r,showWho){
   var cls=/Critical Hit|Amazing|Standard Success/.test(r.tier||"")?"good":/Fail/.test(r.tier||"")?"bad":"";
   return '<div class="rollrow '+cls+'"><div style="display:flex;gap:8px;align-items:baseline"><b style="flex:1">'+(showWho?esc(r.who)+": ":"")+esc(r.label)+'</b>'
-    +(r.mode==="use"||r.mode==="round"||r.mode==="fightend"?'':'<span class="rolltot">'+esc(r.total)+'</span>')+'</div>'
+    +(r.mode==="use"||r.mode==="round"||r.mode==="fightend"||r.mode==="buff"||r.mode==="heal"?'':'<span class="rolltot">'+esc(r.total)+'</span>')+'</div>'
     +(r.tier?'<div class="rolltier">'+esc(r.tier)+'</div>':'')
     +'<div class="hint">'+esc(r.detail)+' \u00b7 '+esc(ago(rollAt(r)))+'</div></div>';
 }
@@ -4531,6 +4672,7 @@ document.addEventListener("click",function(e){
     if(t.dataset.cspec){var sp=t.dataset.cspec,list=p.specials=p.specials||[],at=list.indexOf(sp);if(at>=0)list.splice(at,1);else if(list.length<(ROLE_SPECIALS[p.role]||0))list.push(sp);save();renderSheet();return}
     if(t.dataset.cup){p.upgrades=p.upgrades||[];if(t.dataset.cup==="Move & Trample attack"&&p.upgrades.indexOf(t.dataset.cup)>=0)return;p.upgrades.push(t.dataset.cup);save();renderSheet();return}
     if(t.dataset.cupclear){p.upgrades=[];save();renderSheet();return}
+    if(t.dataset.cmdmg){var mdx=String(p.attacks).match(/\d+d\d+/),mrx=mdx&&rollExpr(mdx[0]);if(mrx)recordRoll(c,{label:(p.name||"Companion")+" damage",total:mrx.total,nat:0,detail:mrx.text+" \u00b7 "+p.attacks,tier:"",mode:"normal"});return}
     if(t.dataset.chit!=null||t.dataset.cdmg!=null){
       var a=petAttacks(p,F)[+(t.dataset.chit!=null?t.dataset.chit:t.dataset.cdmg)]; if(!a)return; var sm=statMod(p.stats.str);
       if(t.dataset.chit!=null)rollCheck(c,(p.name||"Pet")+": "+a.name+" to hit",[{l:"Floor",v:F},{l:"STR",v:sm}]);
@@ -4541,7 +4683,7 @@ document.addEventListener("click",function(e){
   });
   body.addEventListener("input",function(e){
     var t=e.target; var o=comp(t); if(!o||!o.p)return;
-    if(t.dataset.cf&&t.tagName!=="SELECT"){o.p[t.dataset.cf]=t.value;save();return}
+    if(t.dataset.cf&&t.tagName!=="SELECT"){o.p[t.dataset.cf]=t.value;save();if((t.dataset.cf==="hbSlots"||t.dataset.cf==="drExtra"||t.dataset.cf==="move"||t.dataset.cf==="size")&&t.type==="number")setTimeout(function(){var f=document.activeElement,k=f&&f.dataset&&f.dataset.cf,cx=f&&f.closest&&f.closest("[data-cx]");renderSheet();if(k&&cx){var n=$("sheetBody").querySelector('[data-cx="'+cx.dataset.cx+'"] [data-cf="'+k+'"]');if(n)n.focus()}},0);return}
     if(t.dataset.cstat){o.p.stats[t.dataset.cstat]=t.value;save();return}
   });
   body.addEventListener("change",function(e){
@@ -4550,6 +4692,7 @@ document.addEventListener("click",function(e){
       var m=S.library.mobs.find(function(x){return x.id===t.value}); if(!m)return;
       var pet=newCompanion("pet",{name:m.name,animal:m.creature||m.name,size:sizeNum(m.size)||2,attitude:"Hostile",attacks:m.attacks||"",notes:"Tamed from a Mob: "+(m.notes||"").slice(0,160),mobId:m.id});
       var mi=parseInt(m.int,10); if(mi>pet.stats.int)pet.stats.int=mi;
+      var ma=attackFromText(m.attacks); if(ma)pet.baseAtk=ma;
       c.companions=c.companions||[]; c.companions.push(pet); save(); renderSheet();
       toast(m.name+" starts out Hostile. Win it over with Animal Handling: an Amazing Success calms it.");
       return;
@@ -4557,6 +4700,54 @@ document.addEventListener("click",function(e){
     var o=comp(t); if(!o||!o.p)return;
     if(t.dataset.cf){o.p[t.dataset.cf]=t.value;if(t.dataset.cf==="role")o.p.specials=[];if(t.dataset.cf==="attitude"&&t.value!=="Bonded"){o.p.role="";o.p.specials=[]}save();renderSheet();return}
     if(t.dataset.cstat){renderSheet();return}
+    if(t.dataset.cba){var pb=o.p.baseAtk=petBaseAttack(o.p);
+      if(t.dataset.cba==="preset"){var pr=PET_ATTACKS.find(function(a){return a[0]===t.value});if(pr){pb.name=pr[0];pb.die=pr[1];pb.type=pr[2]}}
+      else if(t.dataset.cba==="die")pb.die=parseInt(t.value,10)||4;
+      else if(t.dataset.cba==="type")pb.type=t.value;
+      else pb.name=t.value||"Attack";
+      save();renderSheet();return}
+  });
+})();
+
+
+/* ---- Sponsors: sheet wiring ---- */
+(function(){
+  var body=$("sheetBody"); if(!body)return;
+  function slot(t){var e=t.closest("[data-spi]");return e?+e.dataset.spi:null}
+  body.addEventListener("click",function(e){
+    var c=active(); if(!c)return; var t=e.target.closest("button"); if(!t)return; var i=slot(t); if(i==null)return;
+    if(t.dataset.spadd!=null){var inp=body.querySelector('[data-spnew="'+i+'"]'),nm=(inp&&inp.value||"").trim();if(!nm){toast("Type the Sponsor\u2019s name first.","warn");return}fillSponsor(c,i,nm,"","");return}
+    if(t.dataset.sproll!=null){
+      var ch=sponsorChart(); if(!ch)return; var P=parseChart(ch), rx=rollExpr(P.die); if(!rx)return;
+      var row=P.rows.find(function(r){return rx.total>=r.min&&rx.total<=r.max}); if(!row){toast("No result for "+rx.total+" on "+ch.name+".","warn");return}
+      var txt=chartText(row.text), m=txt.match(/^(.+?)\s*\(([^)]+)\)\s*[:\-\u2013\u2014]\s*(.+)$/);
+      recordRoll(c,{label:"Chart: "+ch.name,total:rx.total,nat:0,detail:rx.text+" \u2192 "+txt.slice(0,200),tier:"",mode:"normal"});
+      if(m)fillSponsor(c,i,m[1].trim(),m[2].trim(),m[3].trim()); else fillSponsor(c,i,txt,"","");
+      return;
+    }
+    var d=spData(c,i), nm=c.sponsors[i];
+    if(t.dataset.sppat!=null){d.patience=+t.dataset.sppat;save();renderSheet();return}
+    if(t.dataset.spdadd!=null){var di=body.querySelector('[data-spi="'+i+'"] [data-spdemand]'),tx=(di&&di.value||"").trim();if(!tx)return;
+      d.demands.push({id:uid(),text:tx,status:"open",floor:c.floor||1});popLog(c,"Sponsors",0,nm+" demands: "+tx);save();renderSheet();recordUse(c,nm+" wants something",tx);return}
+    if(t.dataset.spdone!=null){var dm=d.demands[+t.dataset.spdone];dm.status="done";d.patience=Math.min(3,d.patience+1);
+      popLog(c,"Sponsors",1,"Did what "+nm+" asked: "+dm.text);save();renderSheet();toast(nm+" is "+PATIENCE[d.patience]+". Keep it up and the boxes keep coming.","good");return}
+    if(t.dataset.sprefuse!=null){var dr=d.demands[+t.dataset.sprefuse];dr.status="refused";var was=d.patience;d.patience=Math.max(0,d.patience-1);
+      popLog(c,"Sponsors",-1,"Refused "+nm+": "+dr.text);save();renderSheet();
+      if(was===0)ask(nm+" was already fed up. Do they drop you?","They drop you",function(){dropSponsor(c,i,"refused one demand too many")});
+      else toast(nm+" is now "+PATIENCE[d.patience]+".","warn");return}
+    if(t.dataset.spdel!=null){d.demands.splice(+t.dataset.spdel,1);save();renderSheet();return}
+    if(t.dataset.spbox!=null){benefactorBox(c,i,false);return}
+    if(t.dataset.spemerg!=null){benefactorBox(c,i,true);return}
+    if(t.dataset.spdrop!=null){ask(nm+" drops you?","They drop you",function(){dropSponsor(c,i,"")});return}
+  });
+  body.addEventListener("input",function(e){
+    var t=e.target, c=active(); if(!c||!t.dataset.spf||t.tagName==="SELECT")return; var i=slot(t); if(i==null)return;
+    if(t.dataset.spf==="name"){c.sponsors[i]=t.value;save();return}
+    spData(c,i)[t.dataset.spf]=t.value; save();
+  });
+  body.addEventListener("change",function(e){
+    var t=e.target, c=active(); if(!c||t.dataset.spf!=="tier")return; var i=slot(t); if(i==null)return;
+    spData(c,i).tier=t.value; save(); renderSheet();
   });
 })();
 
@@ -4567,6 +4758,267 @@ function spellStat(lib){
   if(!st){var om=String((lib&&lib.description)||"").match(/\b(Str|Int|Con|Dex|Cha)[a-z]*-Opposed/i);if(om)st=G_STATS[om[1].toLowerCase()]}
   return st||"int";
 }
+/* ================= the Workshop: crafting (Core Rulebook, Chapter 4) =================
+   - Mundane items cost Misc. Junk by size (Table 43); no roll.
+   - Magic needs a crafting table (Table 44); its tier is added to the Check;
+     with several tables, only the lowest tier counts. Tables gain a tier each
+     new Floor (tier 1 costs 25,000 gold).
+   - Difficulty: Stats 10 + bonus x2; non-Passive Skills and Spells 10 + x4; DR,
+     Passive Skills and Spells 10 + x6; anything else 10 + x4.
+   - Time: 1 hour per bonus level (combining potions: 1 minute per level).
+   - Materials are used up either way. On a miss, salvage by margin (Table 47):
+     1-2 all, 3-9 half, 10+ nothing. Critical Fail: the item breaks.
+   - No property twice on an item; with 3+ enchantments, each new one rolls
+     1d10 and breaks the item on 5 or less.
+   - Explosives: the bonus is the d6 dice; +5ft Splash +1 (10ft +2); 5ft Blast +2
+     (10ft +4); needs a volatile component.
+   - Scrolls: Calligraphy, Magical Paper; a spell you know or have in your
+     Hotlist, at no more than your Rank; Rank = the bonus. */
+var CRAFT_SIZES=[["Tiny",1,"soda can"],["Small",4,"toaster"],["Petite",16,"chair"],["Medium",32,"desk"],["Large",64,"statue"],["Huge",128,"dumpster"],["Colossal",256,"barn"],["Gargantuan",512,"grain silo"]];
+var TABLE_TYPES=["Alchemy","Arcanist","Armorer","Engineering","Metalworking","Sapper\u2019s","Writing"];
+var PROJECT_KINDS=[["enchant","Enchant an item"],["potion","Brew a potion"],["scroll","Write a scroll"],["explosive","Build an explosive"],["tattoo","Draw a tattoo"],["fabricate","Fabricate (mundane)"],["other","Something else"]];
+function ws(c){
+  c.workshop=c.workshop||{}; var w=c.workshop;
+  if(!Array.isArray(w.tables))w.tables=[]; if(!Array.isArray(w.projects))w.projects=[];
+  if(w.volatile==null)w.volatile=0; if(w.paper==null)w.paper=0; if(w.ingredients==null)w.ingredients="";
+  return w;
+}
+function craftDifficulty(cat,b){b=parseInt(b,10)||0;return cat==="stat"?10+2*b:(cat==="dr"||cat==="passive")?10+6*b:10+4*b}
+function craftCatLabel(cat){return {stat:"Stat: 10 + bonus \u00d7 2",skill:"Skill or Spell: 10 + bonus \u00d7 4",passive:"DR, Passive Skill or Spell: 10 + bonus \u00d7 6",dr:"DR, Passive Skill or Spell: 10 + bonus \u00d7 6",other:"Other: 10 + bonus \u00d7 4"}[cat]||""}
+/* a crafting skill's cap, read from its own upgrades ("up to a +5 bonus") */
+function craftCap(c,skillName){
+  var l=gLib("skills",skillName), s=gFind(c.skills,skillName), r=s?(parseInt(s.rank,10)||0):0, cap=null, any=false;
+  [["up5",5],["up10",10],["up15",15]].forEach(function(u){var m=String(l&&l[u[0]]||"").match(/up to a \+(\d+) bonus/i);if(m){any=true;if(r>=u[1])cap=+m[1]}});
+  var half=[["up5",5],["up10",10],["up15",15]].some(function(u){return r>=u[1]&&/half the time/i.test(String(l&&l[u[0]]||""))});
+  return {rank:r,has:!!s,cap:cap,capped:any,half:half,stat:(s&&s.stat&&s.stat!=="none")?s.stat:((l&&l.stat)||"int")};
+}
+function skillIsPassive(n){var l=gLib("skills",n)||gLib("spells",n);return !!l&&/passive/i.test((l.check||"")+" "+(l.type||""))}
+function tablesOf(c,type){return ws(c).tables.filter(function(t){return t.type===type})}
+function wsSnapshot(c){return JSON.stringify({inventory:c.inventory,junk:c.junk,ws:{volatile:ws(c).volatile,paper:ws(c).paper},skills:c.skills})}
+function logProject(c,p){var w=ws(c);w.projects.unshift(p);if(w.projects.length>40)w.projects.length=40}
+/* the crafting window: one form for every kind of project */
+function craftWindow(c,kind){
+  var w=ws(c), P={kind:kind,name:"",bonus:1,cat:"stat",stat:"str",skill:"",target:"",text:"",tableId:"",craftSkill:"",size:"Small",
+    dice:2,splash:0,blast:0,dmgType:"Bludgeoning",spell:"",method:"combine",potions:[],batch:1,diffManual:10,hours:1,effect:""};
+  var defSkill={enchant:"Smithing",potion:"Alchemy",scroll:"Calligraphy",explosive:"Explosives Handling",tattoo:"Tattoo Artistry",other:"",fabricate:""}[kind];
+  var defTable={enchant:"Metalworking",potion:"Alchemy",scroll:"Writing",explosive:"Sapper\u2019s",tattoo:"",other:"",fabricate:""}[kind];
+  P.craftSkill=(c.skills.find(function(s){return gNorm(s.name)===gNorm(defSkill)})||{}).name||defSkill;
+  if(kind==="explosive"&&!gFind(c.skills,"Explosives Handling")&&gFind(c.skills,"Goblin Explosives"))P.craftSkill="Goblin Explosives";
+  var tb=tablesOf(c,defTable); if(tb.length)P.tableId=tb.slice().sort(function(a,b){return a.tier-b.tier})[0].id;
+  var invItems=function(){return c.inventory.filter(function(it){return it.where!=="space"&&itemCat(it)!=="Potion"&&itemCat(it)!=="Scroll"})};
+  var potions=function(){return c.inventory.filter(function(it){return itemCat(it)==="Potion"})};
+  var knownSpells=function(){var out=c.spells.map(function(s){return {name:s.name,rank:parseInt(s.rank,10)||1}});
+    c.inventory.forEach(function(it){if(it.spellKind==="scroll"&&it.where==="hot"&&!out.some(function(x){return gNorm(x.name)===gNorm(it.spellName)}))out.push({name:it.spellName,rank:parseInt(it.spellRank,10)||1})});return out};
+  function plan(){
+    var b=Math.max(0,parseInt(P.bonus,10)||0), cat=P.cat, label="", diff=0, hours=0, mins=0, uses=[], makes="", needTable=true, roll=true, problems=[];
+    if(kind==="fabricate"){var sz=CRAFT_SIZES.find(function(x){return x[0]===P.size});uses=[sz[1]+" Misc. Junk"];makes=P.name||(P.size+" item");roll=false;needTable=false;
+      if((parseInt(c.junk,10)||0)<sz[1])problems.push("You need "+sz[1]+" Misc. Junk and have "+(parseInt(c.junk,10)||0)+".");}
+    else if(kind==="enchant"||kind==="tattoo"){
+      if(cat==="skill"&&skillIsPassive(P.skill))cat="passive";
+      diff=craftDifficulty(cat==="spell"?(skillIsPassive(P.spell)?"passive":"skill"):cat,b); hours=b;
+      label=cat==="stat"?"+"+b+" "+G_STATNAME[P.stat]:(cat==="skill"||cat==="passive")?"+"+b+" "+(P.skill||"(choose a skill)"):cat==="dr"?"+"+b+" Damage Resistance":cat==="spell"?"Inherent Spell: "+(P.spell||"(choose a spell)")+", Rank "+b:cat==="as"?"AS: "+(P.text||"(describe the effect)"):(P.text||"(describe it)")+" (bonus level "+b+")";
+      if(kind==="enchant"){var tg=c.inventory.find(function(it){return it.id===P.target});makes=tg?tg.name+" gains "+label:"";if(!tg)problems.push("Choose the item to enchant.");
+        if(tg){var key=enchKey(P,cat);if((tg.enchants||[]).some(function(e){return e.key===key}))problems.push(tg.name+" already has that property. The rulebook allows each one only once.");
+          if(cat==="as"&&(tg.enchants||[]).some(function(e){return e.key.indexOf("as:")===0}))problems.push("Only one \u201cOn an Amazing Success\u201d effect per weapon.");
+          if((tg.enchants||[]).length>=3)problems.push("Over-enchanting: "+tg.name+" has "+tg.enchants.length+" enchantments, so this one rolls 1d10 and breaks it on 5 or less.");}}
+      else{makes=(P.name||"Tattoo")+" ("+label+")";needTable=false}
+      if(cat==="spell")uses=["Arcanist table"];
+    }
+    else if(kind==="potion"){
+      var pcat=P.cat==="stat"?"stat":P.cat==="skill"?(skillIsPassive(P.skill)?"passive":"skill"):"other"; diff=craftDifficulty(pcat,b);
+      var eff=P.cat==="stat"?"+"+b+" "+G_STATNAME[P.stat]:P.cat==="skill"?"+"+b+" "+(P.skill||"(choose a skill)"):(P.effect||"(describe its effect)");
+      makes=(P.name||(P.cat==="stat"?"Potion of +"+b+" "+G_STATNAME[P.stat]:P.cat==="skill"?"Potion of +"+b+" "+(P.skill||"Skill"):"New potion"))+(P.batch>1?" \u00d7"+P.batch:"");
+      if(P.method==="combine"){mins=b*(1+Math.max(0,P.batch-1));uses=P.potions.map(function(id){var it=c.inventory.find(function(x){return x.id===id});return it?it.name:""}).filter(Boolean);
+        if(P.potions.length<2)problems.push("Pick at least two potions to combine.");}
+      else{hours=b;mins=b*Math.max(0,P.batch-1);uses=["ingredients: "+(P.text||"(list them)")]}
+    }
+    else if(kind==="scroll"){var ks=knownSpells().find(function(x){return x.name===P.spell});diff=craftDifficulty(skillIsPassive(P.spell)?"passive":"skill",b);hours=b;
+      makes="Spell Scroll: "+(P.spell||"(choose a spell)")+" (Rank "+b+")";uses=["1 Magical Paper"];
+      if(!P.spell)problems.push("Choose a spell you know, or one whose scroll is in your Hotlist.");
+      if(ks&&b>ks.rank)problems.push("You know "+ks.name+" at Rank "+ks.rank+", so the scroll can\u2019t be higher.");
+      if(!(w.paper>0))problems.push("You have no Magical Paper.");}
+    else if(kind==="explosive"){var sp=P.splash==10?2:P.splash==5?1:0, bl=P.blast==10?4:P.blast==5?2:0; b=Math.max(1,parseInt(P.dice,10)||1)+sp+bl; diff=craftDifficulty("other",b); hours=b;
+      makes=(P.name||"Homemade explosive")+": "+P.dice+"d6 "+P.dmgType+(P.blast?", "+P.blast+"ft Blast":"")+(P.splash?", +"+P.splash+"ft Splash":"");uses=["1 Volatile Component"];
+      if(!(w.volatile>0))problems.push("You have no Volatile Components.");}
+    else if(kind==="other"){diff=parseInt(P.diffManual,10)||10;hours=parseFloat(P.hours)||0;makes=P.name||P.text||"(describe it)";needTable=false}
+    var cap=P.craftSkill?craftCap(c,P.craftSkill):null;
+    if(cap&&cap.half){hours=hours/2;mins=mins/2}
+    if(roll&&cap&&!cap.has)problems.push("You don\u2019t have "+P.craftSkill+", so the Check is at Rank 0.");
+    var info=[];
+    if(roll&&cap&&cap.capped&&kind!=="explosive"){if(cap.cap==null)info.push(P.craftSkill+" at Rank "+cap.rank+": its Rank 5 and 10 upgrades raise the bonus you can craft, so check bigger projects with your GM.");else if(b>cap.cap)problems.push(P.craftSkill+" at Rank "+cap.rank+" allows up to a +"+cap.cap+" bonus.")}
+    var t=w.tables.find(function(x){return x.id===P.tableId});
+    if(roll&&needTable&&!t)problems.push("Magical crafting needs a crafting table (a "+(defTable||"suitable")+" table). Your GM may allow it anyway.");
+    return {bonus:b,diff:diff,hours:hours,mins:mins,uses:uses,makes:makes,roll:roll,table:t,label:label,problems:problems,info:info,cat:cat};
+  }
+  function body(){
+    var pl=plan(), h='<h2 style="font-size:20px;margin-bottom:6px">'+(PROJECT_KINDS.find(function(k){return k[0]===kind})||[0,"Craft"])[1]+'</h2>';
+    var sel=function(id,opts,cur){return '<select data-cw="'+id+'">'+opts.map(function(o){var v=Array.isArray(o)?o[0]:o,l=Array.isArray(o)?o[1]:o;return '<option value="'+esc(v)+'"'+(String(cur)===String(v)?" selected":"")+'>'+esc(l)+'</option>'}).join("")+'</select>'};
+    var fld=function(lab,inner){return '<label class="f"><span class="lab">'+lab+'</span>'+inner+'</label>'};
+    var num=function(id,v,min,max){return '<input type="number" data-cw="'+id+'" value="'+esc(v)+'" min="'+min+'" max="'+max+'">'};
+    var txt=function(id,v,ph){return '<input type="text" data-cw="'+id+'" value="'+esc(v)+'" placeholder="'+esc(ph||"")+'">'};
+    var libSkills=S.library.skills.filter(function(s){return s.name&&!/earth hobby/i.test(s.type||"")}).map(function(s){return s.name}).sort();
+    h+='<div class="grid g2">';
+    if(kind==="fabricate"){h+=fld("Size",sel("size",CRAFT_SIZES.map(function(x){return [x[0],x[0]+" ("+x[2]+"): "+x[1]+" Junk"]}),P.size))+fld("What is it?",txt("name",P.name,"Rope ladder, shield, crowbar\u2026"))}
+    if(kind==="enchant")h+=fld("Item",sel("target",[["","Choose an item\u2026"]].concat(invItems().map(function(it){return [it.id,it.name+((it.enchants||[]).length?" ("+it.enchants.length+" enchantment"+(it.enchants.length>1?"s":"")+")":"")]})),P.target));
+    if(kind==="tattoo")h+=fld("Tattoo name",txt("name",P.name,"Tough Guy Tattoo"));
+    if(kind==="enchant"||kind==="tattoo"){
+      h+=fld("Enchantment",sel("cat",[["stat","Stat bonus"],["skill","Skill bonus"],["dr","Damage Resistance"]].concat(kind==="enchant"?[["spell","Inherent spell (Arcanist)"],["as","On an Amazing Success effect"]]:[]).concat([["other","Something else"]]),P.cat));
+      if(P.cat==="stat")h+=fld("Stat",sel("stat",["str","int","con","dex","cha"].map(function(k){return [k,G_STATNAME[k]]}),P.stat));
+      if(P.cat==="skill")h+=fld("Skill",sel("skill",[["","Choose\u2026"]].concat(libSkills),P.skill));
+      if(P.cat==="spell")h+=fld("Spell",sel("spell",[["","Choose\u2026"]].concat(S.library.spells.map(function(s){return s.name}).sort()),P.spell));
+      if(P.cat==="as"||P.cat==="other")h+=fld("Effect",txt("text",P.text,P.cat==="as"?"+1d6 Fire damage, or a Debuff":"Resistance to Fire, +10ft Move\u2026"));
+      h+=fld(P.cat==="spell"?"Spell Rank":"Bonus",num("bonus",P.bonus,1,20));
+    }
+    if(kind==="potion"){
+      h+=fld("Potion",sel("cat",[["stat","Stat potion (permanent)"],["skill","Skill potion (permanent)"],["other","Healing, cure or anything else"]],P.cat));
+      if(P.cat==="stat")h+=fld("Stat",sel("stat",["str","int","con","dex","cha"].map(function(k){return [k,G_STATNAME[k]]}),P.stat));
+      if(P.cat==="skill")h+=fld("Skill",sel("skill",[["","Choose\u2026"]].concat(libSkills),P.skill));
+      if(P.cat==="other")h+=fld("Effect",txt("effect",P.effect,"Heals 5 Health Bar slots, cures Poisoned\u2026"));
+      h+=fld("Bonus level",num("bonus",P.bonus,1,20))+fld("Name",txt("name",P.name,"Optional"))
+        +fld("Method",sel("method",[["combine","Combine potions (1 minute per bonus level)"],["original","Brew from scratch (1 hour per bonus level)"]],P.method))
+        +fld("How many",num("batch",P.batch,1,20));
+      if(P.method==="original")h+=fld("Ingredients",txt("text",P.text,"Monster blood, weird fungi\u2026"));
+    }
+    if(kind==="scroll"){var ks=knownSpells();h+=fld("Spell",sel("spell",[["","Choose\u2026"]].concat(ks.map(function(s){return [s.name,s.name+" (you: Rank "+s.rank+")"]})),P.spell))+fld("Scroll Rank",num("bonus",P.bonus,1,20));}
+    if(kind==="explosive")h+=fld("Damage dice (d6)",num("dice",P.dice,1,20))+fld("Damage type",sel("dmgType",["Bludgeoning","Fire","Piercing","Acid","Force"],P.dmgType))
+      +fld("Blast radius",sel("blast",[["0","None"],["5","5ft (+2)"],["10","10ft (+4)"]],P.blast))+fld("Splash",sel("splash",[["0","None"],["5","+5ft (+1)"],["10","+10ft (+2)"]],P.splash))+fld("Name",txt("name",P.name,"Optional"));
+    if(kind==="other")h+=fld("What are you making?",txt("text",P.text,"Describe it"))+fld("Difficulty",num("diffManual",P.diffManual,1,60))+fld("Hours",num("hours",P.hours,0,100));
+    if(kind!=="fabricate"){
+      h+=fld("Crafting skill",sel("craftSkill",[["","None"]].concat(c.skills.map(function(s){return [s.name,s.name+" (Rank "+(parseInt(s.rank,10)||0)+")"]})).concat(c.skills.some(function(s){return gNorm(s.name)===gNorm(P.craftSkill)})||!P.craftSkill?[]:[[P.craftSkill,P.craftSkill+" (you don\u2019t have it)"]]),P.craftSkill));
+      h+=fld("Crafting table",sel("tableId",[["","No table"]].concat(w.tables.map(function(t){return [t.id,t.type+" table, tier "+t.tier]})),P.tableId));
+    }
+    h+='</div>';
+    h+='<div class="dbnow" style="border-color:var(--amber);margin-top:10px">'
+      +(pl.roll?'<div><b>Difficulty '+pl.diff+'</b> <span class="hint">'+esc(kind==="explosive"?"bonus "+pl.bonus+" (dice + Blast + Splash) \u00d7 4 + 10":kind==="other"?"set by your GM":craftCatLabel(pl.cat==="spell"?"skill":pl.cat))+'</span></div>':'')
+      +'<div>Makes: <b id="cwMakes">'+esc(pl.makes||"\u2014")+'</b></div>'
+      +(pl.uses.length?'<div>Uses up: '+esc(pl.uses.join(", "))+(pl.roll?' <span class="hint">(gone whether or not it works)</span>':'')+'</div>':'')
+      +((pl.hours||pl.mins)?'<div>Takes: '+[pl.hours?pl.hours+" hour"+(pl.hours===1?"":"s"):"",pl.mins?pl.mins+" minute"+(pl.mins===1?"":"s"):""].filter(Boolean).join(" + ")+'</div>':'')
+      +'</div>'
+      +(pl.problems.length?'<div class="dbnow">'+pl.problems.map(function(x){return '<div>'+esc(x)+'</div>'}).join("")+'</div>':'')
+      +(pl.info.length?'<p class="hint" style="margin:6px 0 0">'+esc(pl.info.join(" "))+'</p>':'')
+      +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="cwNo">Cancel</button><button class="btn pri" id="cwGo">'+(pl.roll?"Roll it":"Make it")+'</button></div>';
+    if(kind==="potion"&&P.method==="combine"){
+      h=h.replace('<div class="dbnow" style="border-color','<div class="lab" style="margin-top:8px">Potions to combine</div><div class="pill" style="flex-wrap:wrap">'
+        +(potions().length?potions().map(function(it){return '<button data-cwpot="'+it.id+'" aria-pressed="'+(P.potions.indexOf(it.id)>=0)+'">'+esc(itemLabel(it))+'</button>'}).join(""):'<span class="hint">No potions in your Inventory.</span>')+'</div><div class="dbnow" style="border-color');
+    }
+    return h;
+  }
+  function redraw(){openModal(body());wire()}
+  function wire(){
+    $("cwNo").addEventListener("click",closeModal);
+    $("modalBox").querySelectorAll("[data-cw]").forEach(function(el){el.addEventListener(el.tagName==="SELECT"?"change":"input",function(){
+      var k=el.dataset.cw; P[k]=el.type==="number"?el.value:el.value;
+      if(k==="cat"||k==="method"||k==="target"||k==="spell"||k==="size"||k==="blast"||k==="splash"||k==="tableId"||k==="craftSkill"||k==="stat"||k==="skill"||el.type==="number"){
+        if(k==="spell"&&kind==="scroll"){var ks=knownSpells().find(function(x){return x.name===P.spell});if(ks)P.bonus=ks.rank}
+        var pos=el.type==="number"||el.type==="text"?el.selectionStart:null; redraw();
+        if(el.type==="number"||el.type==="text"){var n=$("modalBox").querySelector('[data-cw="'+k+'"]');if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(x){}}}
+      }else{var mk=$("cwMakes");if(mk)mk.textContent=plan().makes||"\u2014"}
+    })});
+    $("modalBox").querySelectorAll("[data-cwpot]").forEach(function(b){b.addEventListener("click",function(){var id=b.dataset.cwpot,i=P.potions.indexOf(id);if(i>=0)P.potions.splice(i,1);else P.potions.push(id);redraw()})});
+    $("cwGo").addEventListener("click",function(){var pl=plan();
+      var hard=pl.problems.filter(function(x){return /^(Choose|Pick at least|You need \d|You have no|.*already has that property|Only one|.*can\u2019t be higher)/.test(x)});
+      if(hard.length){toast(hard[0],"warn");return}
+      var soft=pl.problems.filter(function(x){return hard.indexOf(x)<0&&!/^Over-enchanting/.test(x)});
+      var go=function(){closeModal();doCraft(c,kind,P,pl)};
+      if(soft.length&&pl.roll)ask(soft.join(" ")+" Go ahead anyway?","Go ahead",go); else go();
+    });
+  }
+  redraw();
+}
+function enchKey(P,cat){return cat==="stat"?"stat:"+P.stat:(cat==="skill"||cat==="passive")?"skill:"+gNorm(P.skill):cat==="dr"?"dr":cat==="spell"?"spell:"+gNorm(P.spell):cat==="as"?"as:":"other:"+gNorm(P.text)}
+function doCraft(c,kind,P,pl){
+  var w=ws(c), before=wsSnapshot(c), F=c.floor||1, made=[], note="", consumed={junk:0,volatile:0,paper:0,potions:[]};
+  /* materials go first: they're used up whether or not it works */
+  if(kind==="fabricate"){var sz=CRAFT_SIZES.find(function(x){return x[0]===P.size});c.junk=String((parseInt(c.junk,10)||0)-sz[1]);
+    var it=newItem({name:P.name||P.size+" item",category:"Other",notes:"Fabricated from "+sz[1]+" Misc. Junk ("+P.size+")."});c.inventory.push(it);made.push(it.name);
+    logProject(c,{id:uid(),at:Date.now(),kind:kind,name:it.name,outcome:"Made",detail:sz[1]+" Junk",undo:before});syncInv(c);save();renderWorkshop();renderInv();
+    recordUse(c,"Fabricated "+it.name,sz[1]+" Misc. Junk");toast("Made a "+it.name+".","good");return;}
+  if(kind==="scroll"){w.paper=Math.max(0,w.paper-1);consumed.paper=1}
+  if(kind==="explosive"){w.volatile=Math.max(0,w.volatile-1);consumed.volatile=1}
+  if(kind==="potion"&&P.method==="combine")P.potions.forEach(function(id){var it=c.inventory.find(function(x){return x.id===id});if(it){consumed.potions.push(it.name);spendOne(c,it)}});
+  var cap=P.craftSkill?craftCap(c,P.craftSkill):{rank:0,stat:"int"}, tier=pl.table?(parseInt(pl.table.tier,10)||0):0;
+  var keepD=DICE.diff, keepH=DICE.camHold; DICE.diff=String(pl.diff); DICE.camHold=true;
+  try{rollCheck(c,(P.craftSkill||"Crafting")+": "+pl.makes,[{l:"Rank",v:cap.rank},{l:String(cap.stat).toUpperCase(),v:modOf(c,cap.stat)}].concat(tier?[{l:pl.table.type+" table",v:tier}]:[]),"check")}
+  finally{DICE.diff=keepD;DICE.camHold=keepH}
+  var r=S.rollLog[0], miss=pl.diff-r.total, crit=r.nat===1, ok=!crit&&r.total>=pl.diff, outcome, detail="";
+  if(ok){
+    outcome="Success";
+    if(kind==="enchant"){var tg=c.inventory.find(function(x){return x.id===P.target});
+      if(tg){var already=(tg.enchants||[]).length;tg.enchants=tg.enchants||[];
+        if(already>=3){var br=rnd(10);recordRoll(c,{label:"Over-enchanting "+tg.name,total:br,nat:0,detail:"1d10 ["+br+"]: "+(br<=5?"it breaks":"it holds"),tier:"",mode:"normal"});
+          if(br<=5){if(tg.where==="equip")grantRevert(c,"item_"+tg.id);c.inventory.splice(c.inventory.indexOf(tg),1);outcome="Destroyed";detail=tg.name+" broke for good from over-enchanting (rolled "+br+")."}}
+        if(outcome==="Success"){var wasEq=tg.where==="equip";if(wasEq)grantRevert(c,"item_"+tg.id);
+          tg.enchants.push({key:enchKey(P,pl.cat),label:pl.label,bonus:pl.bonus});tg.notes=((tg.notes||"").replace(/\s+$/,"")+(tg.notes?". ":"")+pl.label).replace(/^\. /,"");
+          if(!tg.rarity)tg.rarity="";if(wasEq){var ip=itemPlan(tg);if(ip.fixed.length||ip.dr)grantApply(c,ip,[],[])}
+          made.push(tg.name+" ("+pl.label+")");}}}
+    if(kind==="tattoo"){var tt=newItem({name:P.name||"Tattoo",category:"Gear",slot:"Tattoo",notes:pl.label,enchants:[{key:enchKey(P,pl.cat),label:pl.label,bonus:pl.bonus}]});c.inventory.push(tt);made.push(tt.name)}
+    if(kind==="potion"){var eff=P.cat==="stat"?"Permanent +"+pl.bonus+" "+G_STATNAME[P.stat]:P.cat==="skill"?"Permanent +"+pl.bonus+" "+P.skill:P.effect;
+      var pn=P.name||(P.cat==="stat"?"Potion of +"+pl.bonus+" "+G_STATNAME[P.stat]:P.cat==="skill"?"Potion of +"+pl.bonus+" Skill":"Homebrewed Potion");
+      var pt=newItem({name:pn,qty:Math.max(1,parseInt(P.batch,10)||1),category:"Potion",notes:eff+(P.cat==="skill"?" (made for "+P.skill+")":"")});c.inventory.push(pt);made.push(itemLabel(pt))}
+    if(kind==="scroll"){var ls=gLib("spells",P.spell);var sc=newItem({name:tomeName("Spell Scroll","scroll",P.spell,pl.bonus),category:"Scroll",spellKind:"scroll",spellName:ls?ls.name:P.spell,spellLibId:ls?ls.id:null,spellRank:pl.bonus});c.inventory.push(sc);made.push(sc.name)}
+    if(kind==="explosive"){var ex=newItem({name:P.name||("Homemade "+P.dice+"d6 explosive"),category:"Other",notes:P.dice+"d6 "+P.dmgType+" damage"+(P.blast?", "+P.blast+"ft Blast radius":"")+(P.splash?", +"+P.splash+"ft Splash":"")+"."});c.inventory.push(ex);made.push(ex.name)}
+    if(kind==="other")made.push(P.text||"your project");
+    if(outcome==="Success")detail="Made "+made.join(", ")+".";
+  }else{
+    outcome=crit?"Critical Fail":"Fail";
+    var sal=crit?"":miss<=2?"all":miss<=9?"half":"none";
+    if(kind==="enchant"&&crit){var tb=c.inventory.find(function(x){return x.id===P.target});if(tb){tb.broken=true;tb.notes=(tb.notes?tb.notes+". ":"")+"Broken: needs a Repair";detail=tb.name+" breaks, but it can be repaired. "}}
+    if(sal==="all"){w.paper+=consumed.paper;w.volatile+=consumed.volatile;detail+="Missed by "+miss+": you salvage all the raw materials"+(consumed.potions.length?" (mixed potions can\u2019t be salvaged)":"")+"."}
+    else if(sal==="half"){w.paper+=Math.floor(consumed.paper/2);w.volatile+=Math.floor(consumed.volatile/2);detail+="Missed by "+miss+": you salvage half the raw materials."}
+    else if(sal==="none")detail+="Missed by "+miss+": nothing left to salvage.";
+    else detail+="Your GM decides what (if anything) can be salvaged.";
+    if(gFind(c.skills,"Salvage"))detail+=" Your Salvage skill might save more.";
+  }
+  logProject(c,{id:uid(),at:Date.now(),kind:kind,name:pl.makes,outcome:outcome,detail:detail,diff:pl.diff,total:r.total,hours:pl.hours,mins:pl.mins,undo:before});
+  syncInv(c); save(); renderWorkshop(); renderInv(); renderSheet();
+  recordUse(c,(outcome==="Success"?"Crafted ":"Crafting "+outcome.toLowerCase()+": ")+pl.makes,detail);
+  toast(outcome+(outcome==="Success"?"! ":": ")+detail,outcome==="Success"?"good":"warn");
+}
+function renderWorkshop(){
+  var host=$("wsBody"); if(!host)return; var c=active();
+  if(!c){host.innerHTML='<div class="empty-note">No crawler selected. Pick one from the Roster.</div>';return}
+  var w=ws(c);
+  var h='<div class="sec"><h2>Workshop \u00b7 '+esc(c.name||"Unnamed")+'</h2>'
+    +'<p class="note">Turn junk into something useful. Mundane items just cost Misc. Junk. Anything magical needs the right skill, a crafting table and a Skill Check, and its materials are gone whether or not it works.</p>'
+    +'<div class="grid g3" style="margin-top:10px">'
+    +'<div class="f"><span class="lab">Misc. Junk</span><input type="number" data-wsm="junk" value="'+esc(c.junk||0)+'"></div>'
+    +'<div class="f"><span class="lab">Volatile Components</span><input type="number" data-wsm="volatile" value="'+esc(w.volatile)+'"><span class="hint">for explosives</span></div>'
+    +'<div class="f"><span class="lab">Magical Paper</span><input type="number" data-wsm="paper" value="'+esc(w.paper)+'"><span class="hint">for scrolls</span></div></div>'
+    +'<label class="f" style="margin-top:6px"><span class="lab">Other ingredients</span><input type="text" data-wsm="ingredients" value="'+esc(w.ingredients)+'" placeholder="Monster blood, weird fungi, scrap wire\u2026"></label>';
+  h+='<div class="bar" style="margin-top:18px"><h3>Crafting tables</h3><span class="sp"></span>'
+    +'<select id="wsTableType" style="max-width:160px">'+TABLE_TYPES.map(function(t){return '<option>'+esc(t)+'</option>'}).join("")+'</select>'
+    +'<button class="btn sm" id="wsTableAdd">Add table</button></div>'
+    +(w.tables.length?w.tables.map(function(t,i){return '<div class="catk" data-wst="'+i+'"><b style="flex:1">'+esc(t.type)+' table</b>'
+      +'<label class="hint">tier <input type="number" data-wstf="tier" value="'+esc(t.tier)+'" min="1" max="10" style="width:56px"></label>'
+      +'<input type="text" data-wstf="notes" value="'+esc(t.notes||"")+'" placeholder="Attachments" style="max-width:160px">'
+      +'<button class="x" data-wstdel="'+i+'" aria-label="Remove table">\u00d7</button></div>'}).join(""):'<div class="empty-note">No crafting tables yet. A new tier-1 table costs 25,000 gold, and every table gains a tier each time you reach a new Floor.</div>');
+  h+='<div class="bar" style="margin-top:18px"><h3>New project</h3></div><div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +PROJECT_KINDS.map(function(k){return '<button class="btn sm'+(k[0]==="enchant"?" pri":"")+'" data-wsnew="'+k[0]+'">'+k[1]+'</button>'}).join("")+'</div>';
+  h+='<div class="bar" style="margin-top:18px"><h3>Recent projects</h3></div>'
+    +(w.projects.length?w.projects.slice(0,12).map(function(p,i){return '<div class="catk"><span style="flex:1"><b class="'+(p.outcome==="Success"||p.outcome==="Made"?"up":"down")+'">'+esc(p.outcome)+'</b> '+esc(p.name)
+      +(p.diff?' <span class="hint">('+esc(p.total)+' vs '+esc(p.diff)+')</span>':'')+'<br><span class="hint">'+esc(p.detail||"")+' \u00b7 '+new Date(p.at).toLocaleDateString()+'</span></span>'
+      +(i===0&&p.undo?'<button class="btn sm" data-wsundo>Undo</button>':'')+'</div>'}).join(""):'<div class="empty-note">Nothing crafted yet.</div>');
+  host.innerHTML=h+'</div>';
+}
+(function(){
+  var host=$("wsBody"); if(!host)return;
+  host.addEventListener("click",function(e){
+    var c=active(); if(!c)return; var t=e.target.closest("button"); if(!t)return; var w=ws(c);
+    if(t.id==="wsTableAdd"){var ty=$("wsTableType").value;w.tables.push({id:uid(),type:ty,tier:1,notes:""});save();renderWorkshop();toast("Added a tier-1 "+ty+" table. (A new one costs 25,000 gold.)");return}
+    if(t.dataset.wstdel!=null){var i=+t.dataset.wstdel;ask("Remove the "+w.tables[i].type+" table?","Remove",function(){w.tables.splice(i,1);save();renderWorkshop()});return}
+    if(t.dataset.wsnew){guardAction(c,"check",function(){craftWindow(c,t.dataset.wsnew)});return}
+    if(t.dataset.wsundo!=null){var p=w.projects[0];if(!p||!p.undo)return;
+      ask("Undo \u201c"+p.name+"\u201d? Your Inventory, Junk, materials and skills go back to how they were just before it.","Undo",function(){
+        var u=JSON.parse(p.undo);c.inventory=u.inventory;c.junk=u.junk;w.volatile=u.ws.volatile;w.paper=u.ws.paper;if(u.skills)c.skills=u.skills;
+        w.projects.shift();syncInv(c);save();renderWorkshop();renderInv();renderSheet();toast("Undone.")});return}
+  });
+  host.addEventListener("input",function(e){
+    var c=active(); if(!c)return; var t=e.target, w=ws(c);
+    if(t.dataset.wsm){if(t.dataset.wsm==="junk")c.junk=t.value;else if(t.dataset.wsm==="ingredients")w.ingredients=t.value;else w[t.dataset.wsm]=Math.max(0,parseInt(t.value,10)||0);save();return}
+    if(t.dataset.wstf){var row=t.closest("[data-wst]");var tb=w.tables[+row.dataset.wst];if(t.dataset.wstf==="tier")tb.tier=Math.max(1,Math.min(10,parseInt(t.value,10)||1));else tb.notes=t.value;save();return}
+  });
+})();
+
 /* ================= charts: roll tables in the Library =================
    One result per line: "1-3: text", "4: text", or just "text" (numbered in
    order). Die: "1d8", "2d6", "d100"; blank means one row each. Put a Library
@@ -4671,12 +5123,13 @@ var MOUNT_UPGRADES=["+5ft Move","+1 DR","+1 Size","Move & Trample attack"];
 var ROLE_SPECIALS={Tank:1,Aggressive:0,Utility:2};
 function sizeNum(v){var m=String(v||"").match(/(\d+)/);return m?+m[1]:0}
 function newCompanion(kind,extra){
-  var base={id:uid(),kind:kind,name:kind==="pet"?"New pet":kind==="mount"?"New mount":"New minion",animal:"",size:kind==="mount"?5:2,level:1,
+  var base={id:uid(),kind:kind,name:kind==="pet"?"New pet":kind==="mount"?"New mount":kind==="vehicle"?"New vehicle":"New minion",slotValue:"",occupants:"",accessories:"",animal:"",size:kind==="mount"?5:2,level:1,
     attitude:kind==="minion"?"":"Calm",role:"",specials:[],upgrades:[],stats:{str:2,int:1,con:2,dex:2,cha:1},statPoints:0,hbLost:0,
     hbSlots:kind==="minion"?2:"",move:kind==="mount"?30:"",attacks:"",notes:"",inFight:false,ranOff:false,earthBorn:false};
   return Object.assign(base,extra||{});
 }
 function compSlots(p){
+  if(p.kind==="vehicle")return Math.min(20,Math.max(1,parseInt(p.hbSlots,10)||sizeNum(p.size)||5));
   if(p.kind==="pet")return Math.min(10,Math.max(1,(parseInt(p.size,10)||2)+(parseInt(p.level,10)||1)-1));
   if(p.kind==="mount")return Math.min(10,Math.max(1,(parseInt(p.size,10)||5)+(p.upgrades||[]).filter(function(u){return u==="+1 Size"}).length));
   return Math.max(1,parseInt(p.hbSlots,10)||1);
@@ -4687,16 +5140,29 @@ function compDR(p,F){
   return d+(parseInt(p.drExtra,10)||0);
 }
 function compMove(p){
+  if(p.kind==="vehicle")return parseInt(p.move,10)||"";
   if(p.kind==="mount")return (parseInt(p.move,10)||30)+5*(p.upgrades||[]).filter(function(u){return u==="+5ft Move"}).length;
   if(p.kind==="pet"&&(p.specials||[]).indexOf("Move 60ft")>=0)return 60;
   return parseInt(p.move,10)||"";
+}
+/* a pet's main attack: the book's baseline (1d4 + Str) under whatever name fits */
+var PET_ATTACKS=[["Slice Attack",4,"Slashing"],["Bite",4,"Piercing"],["Peck",4,"Piercing"],["Slam",4,"Bludgeoning"],["Kick",4,"Bludgeoning"],
+  ["Sting",4,"Piercing"],["Tail Whip",4,"Bludgeoning"],["Spit",4,"Acid"],["Vine Lash",4,"Bludgeoning"]];
+var PET_DMG_TYPES=["Slashing","Piercing","Bludgeoning","Acid","Fire","Ice","Lightning","Poison","Necrotic","Psychic","Sonic","Force"];
+function petBaseAttack(p){var b=p.baseAtk||{};return {name:b.name||"Slice Attack",die:parseInt(b.die,10)||4,type:b.type||"Slashing"}}
+/* read "Lick 1d2", "Claw: 1d6 Slashing" from a mob's attacks */
+function attackFromText(t){
+  var m=String(t||"").match(/([A-Z][A-Za-z'\- ]{1,30}?)\s*[:\-\u2013(]?\s*\d*d(\d+)(?:\s*\+\s*[A-Za-z]+)?\s*\)?\s*([A-Z][a-z]+)?/);
+  if(!m)return null; var ty=m[3]&&PET_DMG_TYPES.indexOf(m[3])>=0?m[3]:"";
+  return {name:m[1].trim(),die:+m[2],type:ty||(/bite|fang|tooth|peck|sting|horn/i.test(m[1])?"Piercing":/claw|slash|scratch/i.test(m[1])?"Slashing":"Bludgeoning")};
 }
 function petDifficulty(p,F){return 10+statMod(p.stats.int)+F}
 /* the pet's attacks: Slice, plus Back Claw and Bite for Aggressive pets */
 function petAttacks(p,F){
   var extraDice=(F>=5?1:0)+(F>=10?1:0)+(F>=15?1:0), plus=p.role==="Aggressive"?F:0;
   var mk=function(name,die,type){var n=1+extraDice;return {name:name,dice:n+"d"+die,type:type,plus:plus}};
-  var list=[mk("Slice Attack",4,"Slashing")];
+  var ba=petBaseAttack(p);
+  var list=[mk(ba.name,ba.die,ba.type)];
   if(p.role==="Aggressive"){
     ["Back Claw","Bite"].forEach(function(nm){var l=gLib("skills",nm), g=l&&gDamage(l.damage), dm=g&&g.dice&&g.dice.match(/d(\d+)/);
       list.push(mk(nm,dm?dm[1]:4,(g&&g.type)||(nm==="Bite"?"Piercing":"Slashing")))});
@@ -4748,13 +5214,19 @@ function companionCard(c,p,ix){
   var riderSize=sizeNum(c.size), sz=sizeNum(p.size)+(p.kind==="mount"?(p.upgrades||[]).filter(function(u){return u==="+1 Size"}).length:0);
   var h='<div class="comp card" data-cx="'+ix+'">'
     +'<div class="ihead"><input type="text" data-cf="name" value="'+esc(p.name)+'" style="font-weight:800;flex:1;min-width:120px">'
-    +'<span class="chip">'+({pet:"Pet",mount:"Mount",minion:"Minion"})[p.kind]+(p.kind==="pet"?" \u00b7 Level "+esc(p.level):"")+'</span>'
+    +'<span class="chip">'+({pet:"Pet",mount:"Mount",minion:"Minion",vehicle:"Vehicle"})[p.kind]+(p.kind==="pet"?" \u00b7 Level "+esc(p.level):"")+'</span>'
     +'<button class="x" data-ca="del" aria-label="Remove companion">\u00d7</button></div>'
     +'<div class="grid g4" style="margin-top:6px">'
     +'<label class="f"><span class="lab">What it is</span><input type="text" data-cf="animal" value="'+esc(p.animal)+'" placeholder="Dog, gecko, skeleton\u2026"></label>'
     +'<label class="f"><span class="lab">Size</span><input type="number" data-cf="size" value="'+esc(p.size)+'" min="1" max="8"></label>'
-    +(p.kind!=="minion"?'<label class="f"><span class="lab">Attitude</span><select data-cf="attitude">'+ATTITUDES.map(function(a){return '<option'+(p.attitude===a?" selected":"")+'>'+a+'</option>'}).join("")+'</select></label>':'<label class="f"><span class="lab">Health Bar slots</span><input type="number" data-cf="hbSlots" value="'+esc(p.hbSlots)+'" min="1" max="10"></label>')
-    +'<div class="f"><span class="lab">DR \u00b7 Move</span><div class="out sm">'+dr+' \u00b7 '+(mv||"\u2014")+(mv?"ft":"")+'</div></div></div>';
+    +(p.kind==="pet"||p.kind==="mount"?'<label class="f"><span class="lab">Attitude</span><select data-cf="attitude">'+ATTITUDES.map(function(a){return '<option'+(p.attitude===a?" selected":"")+'>'+a+'</option>'}).join("")+'</select></label>':'<label class="f"><span class="lab">Health Bar slots</span><input type="number" data-cf="hbSlots" value="'+esc(p.hbSlots)+'" min="1" max="'+(p.kind==="vehicle"?20:10)+'"></label>')
+    +'<div class="f"><span class="lab">DR \u00b7 Move</span><div class="out sm">'+dr+' \u00b7 '+(mv||"\u2014")+(mv?"ft":"")+'</div></div></div>'
+    +(p.kind==="vehicle"?'<div class="grid g4" style="margin-top:6px">'
+      +'<label class="f"><span class="lab">Slot value</span><input type="text" data-cf="slotValue" value="'+esc(p.slotValue||"")+'"></label>'
+      +'<label class="f"><span class="lab">Occupants</span><input type="text" data-cf="occupants" value="'+esc(p.occupants||"")+'" placeholder="Driver + 4"></label>'
+      +'<label class="f"><span class="lab">DR</span><input type="number" data-cf="drExtra" value="'+esc(p.drExtra||"")+'"></label>'
+      +'<label class="f"><span class="lab">Move (ft)</span><input type="number" data-cf="move" value="'+esc(p.move||"")+'"></label></div>'
+      +'<label class="f" style="margin-top:6px"><span class="lab">Accessories</span><input type="text" data-cf="accessories" value="'+esc(p.accessories||"")+'" placeholder="Ram plate, roof rack, turret\u2026"></label>':'');
   h+='<div class="hb" style="margin-top:8px">';
   for(var i=0;i<slots;i++)h+='<button data-cslot="'+i+'" data-lost="'+(i<lost?1:0)+'" style="height:36px"><span class="v">'+(i+1)+'</span></button>';
   h+='</div>'+(lost>=slots?'<div class="hint" style="color:var(--rust)">'+(p.earthBorn?"Down. Earth-born pets die instantly at 0%.":"Down at 0%.")+'</div>':'');
@@ -4763,6 +5235,13 @@ function companionCard(c,p,ix){
       return '<div class="f"><span class="lab">'+k.toUpperCase()+'</span><input type="number" data-cstat="'+k+'" value="'+esc(p.stats[k])+'">'
         +((parseInt(p.statPoints,10)||0)>0&&k!=="int"?'<button class="btn sm" data-cspend="'+k+'">+1</button>':'')+'</div>'}).join("")+'</div>'
       +((parseInt(p.statPoints,10)||0)>0?'<div class="hint">'+p.statPoints+' Stat Point'+(p.statPoints>1?"s":"")+' to spend (never on Intelligence).</div>':'');
+    var ba=petBaseAttack(p);
+    h+='<div class="lab" style="margin-top:8px">Main attack</div><div class="catk" style="border-top:none">'
+      +'<select data-cba="preset" style="max-width:130px"><option value="">Quick pick\u2026</option>'+PET_ATTACKS.map(function(a){return '<option value="'+esc(a[0])+'">'+esc(a[0])+' ('+esc(a[2])+')</option>'}).join("")+'</select>'
+      +'<input type="text" data-cba="name" value="'+esc(ba.name)+'" style="flex:1;min-width:110px" aria-label="Attack name">'
+      +'<select data-cba="die" aria-label="Damage die">'+[2,4,6,8,10,12].map(function(n){return '<option value="'+n+'"'+(ba.die===n?" selected":"")+'>1d'+n+'</option>'}).join("")+'</select>'
+      +'<select data-cba="type" aria-label="Damage type">'+PET_DMG_TYPES.map(function(t){return '<option'+(ba.type===t?" selected":"")+'>'+t+'</option>'}).join("")+'</select></div>'
+      +(ba.die!==4?'<div class="hint">The rulebook\u2019s pets use 1d4 here; a different die is your GM\u2019s call.</div>':'');
     h+='<div class="lab" style="margin-top:8px">Attacks <span class="hint">Rank = Floor ('+F+')</span></div>'
       +petAttacks(p,F).map(function(a,k){return '<div class="catk"><span style="flex:1"><b>'+esc(a.name)+'</b> <span class="hint">d20 + '+F+' Floor + Str to hit \u00b7 '+a.dice+' + Str'+(a.plus?" + "+a.plus:"")+' '+esc(a.type)+'</span></span>'
         +'<button class="btn sm" data-chit="'+k+'">Hit</button><button class="btn sm" data-cdmg="'+k+'">Dmg</button></div>'}).join("");
@@ -4781,13 +5260,15 @@ function companionCard(c,p,ix){
       +((p.upgrades||[]).length?'<button class="btn sm" data-cupclear="1">Clear upgrades</button>':'')+'</div>';
     if(riderSize&&sz&&sz<=riderSize)h+='<div class="dbnow">Too small to ride: a mount must be at least one size class bigger than its rider (you\u2019re '+esc(c.size)+').</div>';
   }
-  if(p.kind!=="pet")h+='<label class="f" style="margin-top:8px"><span class="lab">Attacks</span><input type="text" data-cf="attacks" value="'+esc(p.attacks)+'" placeholder="e.g. Trample 2d6 Bludgeoning"></label>';
+  if(p.kind!=="pet")h+='<label class="f" style="margin-top:8px"><span class="lab">Attacks</span><input type="text" data-cf="attacks" value="'+esc(p.attacks)+'" placeholder="e.g. Trample 2d6 Bludgeoning"></label>'
+    +(/\d+d\d+/.test(p.attacks||"")?'<button class="btn sm" data-cmdmg="1" style="margin-top:4px">Roll '+esc((String(p.attacks).match(/\d+d\d+/)||[""])[0])+' damage</button>':'');
+  if(p.hostile)h+='<div class="dbnow">'+esc(p.name)+' has turned on you!</div>';
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
-    +(p.kind!=="minion"&&p.attitude!=="Bonded"?'<button class="btn sm pri" data-ca="win">Win it over</button>':'')
+    +((p.kind==="pet"||p.kind==="mount")&&p.attitude!=="Bonded"?'<button class="btn sm pri" data-ca="win">Win it over</button>':'')
     +(p.kind==="pet"&&/Friendly|Bonded/.test(p.attitude)?'<button class="btn sm" data-ca="fight">'+(p.inFight?"Fighting with you":"Send into the fight")+'</button>':'')
     +(p.inFight||p.ranOff?'<button class="btn sm" data-ca="calm">Fight\u2019s over</button>':'')
     +'</div>'
-    +(p.kind!=="minion"&&p.attitude!=="Bonded"?'<div class="hint">Int-Opposed Animal Handling vs '+petDifficulty(p,F)+' (10 + its Int Mod + Floor). '+({Hostile:"Hostile \u2192 Calm needs an Amazing Success.",Calm:"Calm \u2192 Friendly needs a Standard Success.",Friendly:"Friendly \u2192 Bonded needs an Amazing Success."}[p.attitude]||"")+'</div>':'')
+    +((p.kind==="pet"||p.kind==="mount")&&p.attitude!=="Bonded"?'<div class="hint">Int-Opposed Animal Handling vs '+petDifficulty(p,F)+' (10 + its Int Mod + Floor). '+({Hostile:"Hostile \u2192 Calm needs an Amazing Success.",Calm:"Calm \u2192 Friendly needs a Standard Success.",Friendly:"Friendly \u2192 Bonded needs an Amazing Success."}[p.attitude]||"")+'</div>':'')
     +(p.ranOff?'<div class="dbnow">'+esc(p.name)+' ran off. Find it after the fight.</div>':'')
     +'<label class="f" style="margin-top:6px"><span class="lab">Notes</span><input type="text" data-cf="notes" value="'+esc(p.notes)+'" placeholder="Gear, tricks, personality"></label>'
     +'</div>';
@@ -4808,12 +5289,83 @@ function companionsSection(c){
   miss.forEach(function(sp){COMP_SUGGEST[sp.grantKey]=sp});
   return '<div class="sec" id="compSec"><div class="bar"><h3>Companions</h3><span class="sp"></span>'
     +'<select id="compTame" style="max-width:190px"><option value="">Tame a Mob\u2026</option>'+S.library.mobs.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+'</option>'}).join("")+'</select>'
-    +'<button class="btn sm" data-cnew="pet">New pet</button><button class="btn sm" data-cnew="mount">New mount</button><button class="btn sm" data-cnew="minion">New minion</button></div>'
+    +'<button class="btn sm" data-cnew="pet">New pet</button><button class="btn sm" data-cnew="mount">New mount</button><button class="btn sm" data-cnew="minion">New minion</button><button class="btn sm" data-cnew="vehicle">New vehicle</button></div>'
     +miss.map(function(sp){return '<div class="dbnow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-color:var(--teal)"><span style="flex:1">Your '
       +(/^race/.test(sp.grantKey)?"race":"class")+' gives you <b>'+esc(sp.name)+'</b> ('+({pet:"a Pet",mount:"a Mount",minion:"a Minion"})[sp.kind]+').</span>'
       +'<button class="btn sm pri" data-cgrant="'+esc(sp.grantKey)+'">Add it</button></div>'}).join("")
-    +(list.length?list.map(function(p,i){return companionCard(c,p,i)}).join(""):(miss.length?'':'<div class="empty-note">No pets, mounts or minions yet.</div>'))
+    +(list.length?list.map(function(p,i){return companionCard(c,p,i)}).join(""):(miss.length?'':'<div class="empty-note">No pets, mounts, minions or vehicles yet.</div>'))
     +'</div>';
+}
+
+/* ================= Sponsors (Core Rulebook, Chapter 6) =================
+   Up to three; one new per Floor unless one drops you; bidding at the start of
+   Floors 4-6; from Floor 7 contracts can be sold. They send Benefactor Boxes
+   (Bronze to Celestial: the cheaper the contract, the lower the tier), rare and
+   pricey Emergency Boxes, and make demands. Names stay in c.sponsors[0..2] (the
+   sheet's original slots); the details sit beside them in c.sponsorData. */
+var PATIENCE=["Fed up","Annoyed","Content","Happy"];
+function spData(c,i){c.sponsorData=c.sponsorData||[{},{},{}];if(!c.sponsorData[i])c.sponsorData[i]={};var d=c.sponsorData[i];
+  if(d.patience==null)d.patience=2; if(!d.tier)d.tier="Bronze"; if(!Array.isArray(d.demands))d.demands=[]; return d}
+function sponsorChart(){return S.library.charts.find(function(x){return /sponsor/i.test((x.name||"")+" "+(x.type||""))})}
+function fillSponsor(c,i,name,type,reason){
+  var F=c.floor||1;
+  var go=function(){
+    c.sponsors[i]=name; var d=spData(c,i); d.type=type||""; d.reason=reason||""; d.patience=2; d.tier=d.tier||"Bronze"; d.demands=[]; d.since=F;
+    c.sponsorFloor=F; save(); renderSheet(); popLog(c,"Sponsors",1,"Signed with "+name+(type?" ("+type+")":""));
+    recordUse(c,"Sponsored by "+name,(type?type+". ":"")+(reason||"")); toast("Congratulations, Crawler. You have been sponsored by "+name+".","good");
+  };
+  var others=c.sponsors.filter(function(x,k){return k!==i&&String(x||"").trim()}).length;
+  if(c.sponsorFloor===F&&others&&c.droppedFloor!==F)ask("The rulebook allows one new Sponsor per Floor, unless one drops you. "+(c.name||"This crawler")+" already signed one on Floor "+F+". Add "+name+" anyway?","Add anyway",go);
+  else go();
+}
+function sponsorSection(c){
+  var F=c.floor||1, n=c.sponsors.filter(function(x){return String(x||"").trim()}).length, chart=sponsorChart();
+  var h='<div class="sec" id="sponSec"><div class="bar"><h3>Sponsors</h3><span class="sp"></span><span class="hint">'+n+' of 3</span></div>'
+    +'<p class="hint" style="margin:0 0 8px">Sponsors bid at the start of the Fourth, Fifth and Sixth Floors, one new Sponsor per Floor unless one drops you. From the Seventh Floor they can sell your contract. Their Benefactor Boxes are why you put up with them.</p>';
+  for(var i=0;i<3;i++){
+    var nm=String(c.sponsors[i]||"").trim();
+    if(!nm){
+      h+='<div class="spcard empty" data-spi="'+i+'"><div class="ihead"><span class="hint" style="flex:1">Open slot '+(i+1)+'</span>'
+        +'<input type="text" data-spnew="'+i+'" placeholder="Sponsor name" style="max-width:170px"><button class="btn sm" data-spadd="'+i+'">Add</button>'
+        +(chart?'<button class="btn sm pri" data-sproll="'+i+'">Roll a Sponsor</button>':'')+'</div></div>';
+      continue;
+    }
+    var d=spData(c,i), open=d.demands.filter(function(x){return x.status==="open"});
+    h+='<div class="spcard" data-spi="'+i+'"><div class="ihead"><input type="text" data-spf="name" value="'+esc(nm)+'" style="font-weight:800;flex:1;min-width:140px">'
+      +rarityBadge(d.tier)+'<span class="chip pat'+d.patience+'">'+PATIENCE[d.patience]+'</span></div>'
+      +'<div class="grid g3" style="margin-top:6px">'
+      +'<label class="f"><span class="lab">Type</span><input type="text" data-spf="type" value="'+esc(d.type||"")+'" placeholder="Snack foods, arms\u2026"></label>'
+      +'<label class="f"><span class="lab">Why they sponsor you</span><input type="text" data-spf="reason" value="'+esc(d.reason||"")+'"></label>'
+      +'<label class="f"><span class="lab">Usual box tier</span><select data-spf="tier">'+RARITY.map(function(r){return '<option'+(d.tier===r?" selected":"")+'>'+r+'</option>'}).join("")+'</select></label></div>'
+      +'<div class="lab" style="margin-top:8px">Patience</div><div class="pill" style="flex-wrap:wrap">'+PATIENCE.map(function(p,k){return '<button data-sppat="'+k+'" aria-pressed="'+(d.patience===k)+'">'+p+'</button>'}).join("")+'</div>'
+      +'<div class="lab" style="margin-top:8px">Demands'+(open.length?' <span class="hint">('+open.length+' open)</span>':'')+'</div>'
+      +(d.demands.length?d.demands.map(function(dm,k){return '<div class="catk"><span style="flex:1'+(dm.status!=="open"?';opacity:.65':'')+'">'+esc(dm.text)+(dm.status==="done"?" \u2714":dm.status==="refused"?" \u2716":"")+'</span>'
+        +(dm.status==="open"?'<button class="btn sm" data-spdone="'+k+'">Done</button><button class="btn sm" data-sprefuse="'+k+'">Refused</button>':'<button class="x" data-spdel="'+k+'" aria-label="Remove">\u00d7</button>')+'</div>'}).join(""):'<div class="hint">None yet. Shill a product, change your look, run their Quest\u2026</div>')
+      +'<div style="display:flex;gap:6px;margin-top:4px"><input type="text" data-spdemand placeholder="What do they want now?" style="flex:1"><button class="btn sm" data-spdadd>Add demand</button></div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><button class="btn sm pri" data-spbox>Benefactor Box</button><button class="btn sm" data-spemerg>Emergency Box</button><button class="btn sm dgr" data-spdrop>They drop you</button></div>'
+      +(d.since?'<div class="hint" style="margin-top:4px">Sponsor since Floor '+esc(d.since)+(F>=7?'. They can sell or transfer your contract now.':'.')+'</div>':'')
+      +'</div>';
+  }
+  return h+'</div>';
+}
+function benefactorBox(c,i,emergency){
+  var d=spData(c,i), nm=c.sponsors[i], F=c.floor||1, rar=d.tier||"Bronze", note="";
+  var go=function(){
+    if(c.boxDowngrade&&!emergency){var ri=RARITY.indexOf(rar);rar=RARITY[Math.max(0,ri-1)];c.boxDowngrade=false;note=" (a tier lower, after a bad camera moment)"}
+    c.boxes.push({id:uid(),name:(emergency?"Emergency Benefactor Box":"Benefactor Box"),rarity:rar,why:"From "+nm});
+    popLog(c,"Sponsors",1,(emergency?"Emergency ":"")+"Benefactor Box from "+nm+": "+rar+note);
+    save(); renderSheet(); renderInv(); recordUse(c,(emergency?"Emergency ":"")+"Benefactor Box from "+nm,rar+note);
+    toast("A "+rar+" "+(emergency?"Emergency ":"")+"Benefactor Box from "+nm+" is waiting in your loot boxes"+note+".","good");
+  };
+  if(emergency)ask("Emergency Benefactor Boxes can save the day, but they\u2019re exorbitantly expensive, so Sponsors rarely send them. Your GM\u2019s call. Send one from "+nm+"?","Send it",go);
+  else if(c.noBoxFloor===F)ask("A Major Fail playing to the Sponsors means no Benefactor Box this Floor. Send one anyway?","Send anyway",go);
+  else go();
+}
+function dropSponsor(c,i,why){
+  var nm=c.sponsors[i]; c.sponsors[i]=""; c.sponsorData[i]={}; c.droppedFloor=c.floor||1;
+  popLog(c,"Sponsors",-1,"Dropped by "+nm+(why?": "+why:""));
+  save(); renderSheet(); recordUse(c,"Dropped by "+nm,"A new round of bidding begins. A replacement usually arrives in about two days, if anyone still wants you.");
+  toast(nm+" dropped you. Bidding starts again: expect a replacement in about two days, if anyone still wants you.","warn");
 }
 
 /* ================= Popularity, and playing to the cameras =================
@@ -5074,11 +5626,20 @@ function tickCrawler(c){
     if(r<=0){if(debuffMech(d).dying){out.push("the Dying countdown has run out");return true}out.push(d.name+" wore off");return false}
     return true;
   });
+  var pst=puState(c);
+  pst.active.slice().forEach(function(a){if(a.roundsLeft){a.roundsLeft--;if(a.roundsLeft<=0)out.push(puExpire(c,a))}});
+  var kids=(c.companions||[]).filter(function(x){return x.temp==="multiply"&&!x.hostile}), mi=kids.length?multiplyInfo(c):null;
+  if(mi&&mi.turns){var r6=rnd(6);recordRoll(c,{label:"Do the little ones turn?",total:r6,nat:0,detail:"d6 ["+r6+"]"+(r6===1?": one turns on you":""),tier:"",mode:"normal"});
+    if(r6===1){kids[0].hostile=true;kids[0].notes="Turned on you!";out.push(kids[0].name+" turned on you")}}
   if((c.hbLost||0)>=10&&!c.debuffs.some(function(d){return debuffMech(d).dying})){addDebuff(c.debuffs,"Dying",c);out.push("is Dying")}
   if((c.hbLost||0)<10)c.debuffs=c.debuffs.filter(function(d){return !debuffMech(d).dying});
   save(); return out;
 }
-function endFightFor(c){var n=(c.debuffs||[]).length;c.debuffs=(c.debuffs||[]).filter(function(d){return !debuffMech(d).combat});save();return n-c.debuffs.length}
+function endFightFor(c){if(c.transformed){c.transformed=false}
+  var pst=puState(c); pst.active.slice().forEach(function(a){puExpire(c,a,"the fight is over")}); c.partyBuffs=[]; c.pendingHeals=[];
+  Object.keys(pst.used).forEach(function(k){if(pst.used[k]==="fight")delete pst.used[k]});
+  if(c.companions)c.companions=c.companions.filter(function(x){return x.temp!=="multiply"});
+  var n=(c.debuffs||[]).length;c.debuffs=(c.debuffs||[]).filter(function(d){return !debuffMech(d).combat});save();return n-c.debuffs.length}
 /* GM posts to the party feed so each player's device runs its own crawler */
 function postRound(mode,label,detail){
   var code=rollCode(); if(!code||!fbDb||!fbUser)return false;
@@ -5088,7 +5649,7 @@ function postRound(mode,label,detail){
 var roundsPrimed=false;
 function rollAt(x){var a=x.at;if(!a)return 0;if(typeof a.toMillis==="function")return a.toMillis();if(typeof a.getTime==="function")return a.getTime();if(a.seconds)return a.seconds*1000;return typeof a==="number"?a:0}
 function handleRoundPosts(list){
-  var posts=list.filter(function(x){return x.mode==="round"||x.mode==="fightend"}), newest=0;
+  var posts=list.filter(function(x){return x.mode==="round"||x.mode==="fightend"||x.mode==="buff"||x.mode==="heal"}), newest=0;
   posts.forEach(function(x){newest=Math.max(newest,rollAt(x))});
   if(!roundsPrimed){roundsPrimed=true;S.roundSeen=Math.max(S.roundSeen||0,newest);return}
   var fresh=posts.filter(function(x){return rollAt(x)>(S.roundSeen||0)}).sort(function(a,b){return rollAt(a)-rollAt(b)});
@@ -5097,6 +5658,12 @@ function handleRoundPosts(list){
   var c=active();
   fresh.forEach(function(x){
     if(!c)return;
+    if(x.mode==="heal"){if(fbUser&&x.owner===fbUser.uid)return;var hv={};String(x.detail||"").split(";").forEach(function(p){var i=p.indexOf("=");if(i>0)hv[p.slice(0,i)]=p.slice(i+1)});
+      c.pendingHeals=(c.pendingHeals||[]).filter(function(p){return p.key!==hv.key});c.pendingHeals.push({id:uid(),key:hv.key,name:hv.name,n:+hv.n||1,clear:hv.clear||"",range:+hv.range||15,from:hv.from||"An ally"});
+      toast((hv.from||"An ally")+" used "+hv.name+". If you were within "+(hv.range||15)+"ft, tap Heal on your sheet.","good");return}
+    if(x.mode==="buff"){if(fbUser&&x.owner===fbUser.uid)return;var kv={};String(x.detail||"").split(";").forEach(function(p){var i=p.indexOf("=");if(i>0)kv[p.slice(0,i)]=p.slice(i+1)});
+      puState(c);c.partyBuffs=c.partyBuffs.filter(function(b){return b.key!==kv.key});c.partyBuffs.push({key:kv.key,name:kv.name,atk:+kv.atk||0,from:kv.from||"an ally"});
+      toast((kv.from||"An ally")+" used "+kv.name+": +"+(+kv.atk||0)+" to your Attack Skill Checks for the rest of the fight.","good");return}
     if(x.mode==="round"){var out=tickCrawler(c);if(out.length)toast(x.label+": "+(c.name||"Your crawler")+" "+out.join(", ")+".","warn")}
     else{var n=endFightFor(c);if(n)toast("The fight is over: "+n+" debuff"+(n>1?"s":"")+" ended with it.")}
   });
@@ -5131,6 +5698,187 @@ function endRound(){
   toast(label+(out.length?": "+out.join("; ")+".":". Nothing ticked."),out.length?"warn":"");
 }
 
+/* ================= Rage, power-ups, party buffs, and the Mogwhy =================
+   Everything here is read from the race/class/subclass text, so editing an
+   ability in the Library changes what the button does. */
+function puSources(c){
+  var out=[], r=c.raceId&&S.library.races.find(function(x){return x.id===c.raceId}), k=gClassOf(c);
+  if(r)out.push({from:"race",name:r.name,text:String(r.abilities||""),draw:String(r.drawbacks||"")});
+  if(k)out.push({from:"class",name:k.name,text:String(k.abilities||""),draw:String(k.drawbacks||"")});
+  ["f6","f9","f12"].forEach(function(f){var o=subOptions(c,f).find(function(x){return x.name===(c.subclasses||{})[f]});if(o)out.push({from:"sub",name:o.name,text:o.text,draw:""})});
+  return out;
+}
+/* Rage (Benefit): "+1 damage for each Health Bar slot you have lost" on melee attacks */
+function rageInfo(c){var n=0;puSources(c).forEach(function(s){var m=s.text.match(/melee attacks deal \+(\d+) damage for each Health Bar slot you have lost/i);if(m)n=Math.max(n,+m[1])});return n}
+function isMeleeRow(row){return !/\b(bow|gun|pistol|rifle|crossbow|sling|thrown|throw|ranged|launcher|dart|shotgun|revolver|blaster|missile|javelin)\b/i.test((row.name||"")+" "+(row.effects||""))}
+/* power-ups: a temporary bonus "for the rest of the fight" or "for N rounds" */
+function powerupDefs(c){
+  var defs=[];
+  puSources(c).forEach(function(src){
+    var lines=src.from==="sub"?[src.text]:src.text.split(/\n/).filter(function(l){return /^\s*(\[\d+ pt\]|\u2022)/.test(l)&&!/^\s+\u2022/.test(l)});
+    lines.forEach(function(line){
+      if(/Transformation Sequence|Rage \(Benefit\)/i.test(line))return;
+      line.replace(/^\s*\[\d+ pt\]\s*/,"").replace(/^\u2022\s*/,"").split(/(?<=\.)\s+(?=[A-Z])/).forEach(function(sen,si,all){
+        if(!/rest of the fight|for (\d+) rounds/i.test(sen))return;
+        var nm=src.from==="sub"?src.name:((line.replace(/^\s*\[\d+ pt\]\s*/,"").match(/^([^:.]{2,40}):/)||[])[1]||src.name);
+        var full=sen, prev=all[si-1]||"";
+        if(/^On a success/i.test(sen)&&prev)full=prev+" "+sen;
+        var am=sen.match(/(?:\+(\d+)|a (\d+)-point bonus) (?:on|to) (?:their |your )?Attack Skill Checks/i), atk=am?+(am[1]||am[2]):0;
+        var dm=sen.match(/\+(\d+) damage/i), dd=sen.match(/(\d+d\d+) extra damage/i), em=sen.match(/\+(\d+) Evade/i), cl=sen.match(/plus a (\d+d\d+) (\w+) strike/i);
+        var d={key:src.from+":"+nm,name:nm,atk:atk,dmg:dm?+dm[1]:(/Attack Skill Checks and damage/i.test(sen)?atk:0),dmgDice:dd?dd[1]:"",
+          evade:em?+em[1]:(/Attack Skill Checks and Evade/i.test(sen)?atk:0),melee:/melee Attacks/i.test(sen),
+          rounds:+((sen.match(/for (\d+) rounds/i)||[])[1]||0),after:(sen.match(/then you gain the ([A-Z][\w\u2011\-]+) Debuff/)||[])[1]||"",
+          per:/once per fight/i.test(full)?"fight":/once per day/i.test(full)?"day":/once per fight/i.test(line)?"fight":"day",party:/every ally|allies/i.test(sen)&&!/\byou get\b/i.test(sen),
+          needs:(full.match(/make an? ([A-Z][\w ]+?) check\. On a success/i)||[])[1]||"",claw:cl?cl[1]+" "+cl[2]:"",text:full.trim()};
+        if(d.atk||d.dmg||d.dmgDice||d.evade)defs.push(d);
+      });
+    });
+  });
+  return defs;
+}
+function healDefs(c){
+  var out=[];
+  puSources(c).forEach(function(src){
+    src.text.split(/\n/).forEach(function(line){
+      var m=line.match(/(?:every ally|allies) within (\d+)\s*ft[^.]*?recovers? (\d+) Health Bar slots?/i); if(!m)return;
+      var nm=(line.replace(/^\s*\[\d+ pt\]\s*/,"").match(/^([^:.]{2,40}):/)||[])[1]||src.name, cl=line.match(/loses? the ([A-Z][\w\u2011\- ]+?) Debuff/);
+      out.push({key:"heal:"+nm,name:nm,range:+m[1],n:+m[2],clear:cl?cl[1]:"",self:/including you/i.test(line),per:/once per fight/i.test(line)?"fight":"day"});
+    });
+  });
+  return out;
+}
+function healOne(c,n,clear){
+  var before=c.hbLost||0; c.hbLost=Math.max(0,before-n); var got=before-c.hbLost, cl=false;
+  if(clear){var i=(c.debuffs||[]).findIndex(function(d){return gNorm(d.name)===gNorm(clear)});if(i>=0){c.debuffs.splice(i,1);cl=true}}
+  if((c.hbLost||0)<10)c.debuffs=(c.debuffs||[]).filter(function(d){return !debuffMech(d).dying});
+  return (got?"recovered "+got+" slot"+(got>1?"s":""):"was already at full health")+(cl?", "+clear+" gone":"");
+}
+function activateHeal(c,h){
+  var st=puState(c);
+  var go=function(){guardAction(c,h.self?["use","heal"]:"use",function(){
+    st.used[h.key]=h.per; var me=h.self?healOne(c,h.n,h.clear):"";
+    S.characters.forEach(function(x){if(x===c)return;x.pendingHeals=(x.pendingHeals||[]).filter(function(p){return p.key!==h.key});x.pendingHeals.push({id:uid(),key:h.key,name:h.name,n:h.n,clear:h.clear,range:h.range,from:c.name||"An ally"})});
+    postRound("heal",h.name+": allies within "+h.range+"ft recover "+h.n+" Health Bar slot"+(h.n>1?"s":"")+(h.clear?" and lose "+h.clear:""),"n="+h.n+";range="+h.range+";clear="+h.clear+";key="+h.key+";name="+h.name+";from="+(c.name||"An ally"));
+    save(); renderSheet(); recordUse(c,"Used "+h.name,"Allies within "+h.range+"ft recover "+h.n+(h.clear?" and lose "+h.clear:"")+(me?". "+(c.name||"You")+" "+me:""));
+    toast(h.name+"! "+(me?(c.name||"You")+" "+me+". ":"")+"Everyone else in range can tap Heal on their sheet.","good");
+  })};
+  if(st.used[h.key])ask(h.name+" is once per "+h.per+", and you\u2019ve used it. Use it anyway?","Use it anyway",go); else go();
+}
+function puState(c){c.pu=c.pu||{active:[],used:{}};if(!Array.isArray(c.pu.active))c.pu.active=[];if(!c.pu.used)c.pu.used={};if(!Array.isArray(c.partyBuffs))c.partyBuffs=[];return c.pu}
+function puEffects(d){return [d.atk?"+"+d.atk+" to Attack Skill Checks":"",d.dmg?"+"+d.dmg+(d.melee?" melee":"")+" damage":"",d.dmgDice?"+"+d.dmgDice+" damage":"",d.evade?"+"+d.evade+" Evade":"",d.claw?"a "+d.claw+" strike":""].filter(Boolean).join(", ")}
+function puAttackMods(c){var st=puState(c),m=[];st.active.forEach(function(a){if(a.atk)m.push({l:a.name,v:a.atk})});c.partyBuffs.forEach(function(b){if(b.atk)m.push({l:b.name,v:b.atk})});return m}
+function puEvade(c){if(!c||!c.pu)return 0;return (c.pu.active||[]).reduce(function(s,a){return s+(a.evade||0)},0)}
+function puExpire(c,a,why){
+  var st=puState(c); st.active=st.active.filter(function(x){return x!==a});
+  if(a.after){c.debuffs=c.debuffs||[];addDebuff(c.debuffs,a.after,c)}
+  return a.name+" ended"+(a.after?": now "+a.after:"")+(why?" ("+why+")":"");
+}
+function activatePU(c,d){
+  var st=puState(c);
+  if(st.active.some(function(a){return a.key===d.key})){toast(d.name+" is already active.");return}
+  var go=function(){guardAction(c,"use",function(){
+    st.used[d.key]=d.per; var a=Object.assign({},d,{roundsLeft:d.rounds||0}); 
+    if(d.party){
+      S.characters.forEach(function(x){puState(x);x.partyBuffs=x.partyBuffs.filter(function(b){return b.key!==d.key});x.partyBuffs.push({key:d.key,name:d.name,atk:d.atk,from:c.name||"an ally"})});
+      postRound("buff",d.name+": every ally gets "+puEffects(d)+" for the rest of the fight","atk="+d.atk+";key="+d.key+";name="+d.name+";from="+(c.name||"An ally"));
+    }else st.active.push(a);
+    save(); renderSheet(); recordUse(c,"Activated "+d.name,puEffects(d)+(d.rounds?" for "+d.rounds+" rounds":" for the rest of the fight")+(d.party?" (every ally)":""));
+    toast(d.name+"! "+puEffects(d)+(d.party?" for every ally":"")+(d.rounds?" for "+d.rounds+" rounds":" for the rest of the fight")+(d.after?". Then: "+d.after+".":"."),"good");
+  })};
+  var pre=d.needs?"First make a "+d.needs+" check: this only works on a success. ":"";
+  if(st.used[d.key])ask(pre+d.name+" is once per "+d.per+", and you\u2019ve used it. Activate it anyway?","Activate anyway",go);
+  else if(pre)ask(pre+"Did it succeed?","It succeeded",go);
+  else go();
+}
+/* the Mogwhy: the Change, and Multiply */
+function changeInfo(c){
+  var out=null;
+  puSources(c).forEach(function(s){
+    var line=(s.draw+"\n"+s.text).split(/\n/).filter(function(l){return /go through the Change/i.test(l)})[0]; if(!line||out)return;
+    var stats=[],re=/([+\u2212\-]\d+) (Strength|Intelligence|Constitution|Dexterity|Charisma)/g,m;
+    while((m=re.exec(line)))stats.push({k:G_STATS[m[2].toLowerCase()],n:parseInt(m[1].replace("\u2212","-"),10)});
+    var cl=line.match(/(\d+d\d+) \+ (Str|Dex|Con) (\w+) attack/i), dis=line.match(/Disadvantage on ([^,]+?),/), lost=line.match(/you lose (.+?)\.\s*$/);
+    out={stats:stats,claw:cl?{dice:cl[1],stat:cl[2].toLowerCase(),name:cl[3].charAt(0).toUpperCase()+cl[3].slice(1)}:null,
+      dis:dis?dis[1].split(/\s+and\s+/):[],lost:lost?lost[1].split(/\s+and\s+/):[],name:(line.match(/\]\s*([^:]+):/)||[])[1]||"The Change"};
+  });
+  return out;
+}
+function applyChange(c){
+  var ci=changeInfo(c); if(!ci)return; var rec={stats:[],atk:null};
+  ci.stats.forEach(function(s){c.stats[s.k]=String((parseInt(c.stats[s.k],10)||0)+s.n);if(c.enh[s.k]!==""&&c.enh[s.k]!=null)c.enh[s.k]=String((parseInt(c.enh[s.k],10)||0)+s.n);rec.stats.push(s)});
+  if(ci.claw){var row={id:uid(),name:ci.claw.name,hitRank:"",hitStat:ci.claw.stat,dmgDice:ci.claw.dice,dmgStat:ci.claw.stat,effects:"Slashing (from the Change)"};c.attacks.push(row);rec.atk=row.id}
+  var note="The Change: "+ci.stats.map(function(s){return (s.n>0?"+":"")+s.n+" "+G_STATNAME[s.k]}).join(", ")+(ci.claw?", a "+ci.claw.dice+" + "+ci.claw.stat.toUpperCase()+" "+ci.claw.name.toLowerCase():"")
+    +(ci.dis.length?". Disadvantage on "+ci.dis.join(" and "):"")+(ci.lost.length?". Lost: "+ci.lost.join(" and "):"")+".";
+  c.racialAbilities=(String(c.racialAbilities||"").replace(/\s+$/,"")+"\n\n"+note).trim(); rec.note=note;
+  c.changeRec=rec; c.changed=true; c.changePending=false;
+}
+function undoChange(c){
+  var rec=c.changeRec; if(!rec)return;
+  rec.stats.forEach(function(s){c.stats[s.k]=String((parseInt(c.stats[s.k],10)||0)-s.n);if(c.enh[s.k]!==""&&c.enh[s.k]!=null)c.enh[s.k]=String((parseInt(c.enh[s.k],10)||0)-s.n)});
+  if(rec.atk)c.attacks=c.attacks.filter(function(a){return a.id!==rec.atk});
+  if(rec.note)c.racialAbilities=String(c.racialAbilities||"").replace(rec.note,"").replace(/\n{3,}/g,"\n\n").trim();
+  c.changed=false; c.changeRec=null;
+}
+function multiplyInfo(c){
+  var out=null;
+  puSources(c).forEach(function(s){
+    var line=s.text.split(/\n/).filter(function(l){return /pop out of your back/i.test(l)})[0]; if(!line||out)return;
+    var n=line.match(/(\d+d\d+) tiny (\w+)/i), sl=line.match(/with (\d+) Health Bar slot/i), bt=line.match(/a (\d+d\d+) bite/i);
+    out={count:n?n[1]:"1d4",what:n?n[2]:"copies",slots:sl?+sl[1]:1,bite:bt?bt[1]:"1d4",turns:/on a 1, one of them turns on you/i.test(line),
+      soak:/accidental soaking[^.]*sets off Multiply/i.test(s.draw)};
+  });
+  return out;
+}
+function doMultiply(c,hostile){
+  var mi=multiplyInfo(c); if(!mi)return; var rx=rollExpr(mi.count), n=rx?rx.total:1;
+  recordRoll(c,{label:(hostile?"Accidental soaking":"Multiply")+": tiny "+mi.what,total:n,nat:0,detail:mi.count+" "+(rx?rx.text:"")+(hostile?" \u00b7 hostile from the start":""),tier:"",mode:"normal"});
+  c.companions=c.companions||[]; var have=c.companions.filter(function(x){return x.temp==="multiply"}).length;
+  for(var i=0;i<n;i++)c.companions.push(newCompanion("minion",{name:"Tiny "+mi.what.replace(/s$/,"")+" "+(have+i+1),hbSlots:mi.slots,attacks:"Bite "+mi.bite,temp:"multiply",hostile:!!hostile,notes:hostile?"Hostile from the start (accidental soaking).":"An ally for the fight."}));
+  if(!hostile)puState(c).used["race:Multiply"]="day";
+  save(); renderSheet();
+  toast(n+" tiny "+mi.what+" pop out of your back"+(hostile?", and they\u2019re hostile!":"! They fight with you, for now."),hostile?"warn":"good");
+}
+function powerupsSection(c){
+  var defs=powerupDefs(c), ci=changeInfo(c), mi=multiplyInfo(c), rage=rageInfo(c), st=puState(c), heals=healDefs(c), pend=c.pendingHeals||[];
+  if(!defs.length&&!ci&&!mi&&!rage&&!c.partyBuffs.length&&!heals.length&&!pend.length)return "";
+  var h='<div class="sec" id="puSec"><div class="bar"><h3>Power-ups</h3></div>';
+  pend.forEach(function(p){h+='<div class="pu on"><div class="ihead"><span style="flex:1"><b>'+esc(p.from)+'</b> used <b>'+esc(p.name)+'</b>. Were you within '+p.range+'ft?</span>'
+    +'<button class="btn sm pri" data-phok="'+esc(p.id)+'">Heal '+p.n+' slot'+(p.n>1?"s":"")+'</button><button class="btn sm" data-phno="'+esc(p.id)+'">Not in range</button></div>'
+    +(p.clear?'<div class="hint">It also clears '+esc(p.clear)+'.</div>':'')+'</div>'});
+  heals.forEach(function(hd){var used=st.used[hd.key];
+    h+='<div class="pu"><div class="ihead"><b style="flex:1">'+esc(hd.name)+'</b><button class="btn sm pri" data-healon="'+esc(hd.key)+'">Use it</button></div>'
+      +'<div class="hint">Every ally within '+hd.range+'ft'+(hd.self?" (including you)":"")+' recovers '+hd.n+' Health Bar slot'+(hd.n>1?"s":"")+(hd.clear?" and loses "+esc(hd.clear):"")+'. Once per '+hd.per+(used?" (used)":"")+'.</div></div>'});
+  if(rage)h+='<div class="hint" style="margin-bottom:6px"><b>Rage:</b> your melee damage rolls add +'+rage+' for each Health Bar slot you\u2019ve lost (now +'+rage*(parseInt(c.hbLost,10)||0)+'). Added automatically.</div>';
+  c.partyBuffs.forEach(function(b){h+='<div class="pu on"><b>'+esc(b.name)+'</b> <span class="hint">from '+esc(b.from)+': +'+b.atk+' to Attack Skill Checks until the fight ends</span></div>'});
+  defs.forEach(function(d){
+    var act=st.active.find(function(a){return a.key===d.key}), pb=d.party&&c.partyBuffs.some(function(b){return b.key===d.key}), used=st.used[d.key];
+    h+='<div class="pu'+(act||pb?" on":"")+'"><div class="ihead"><b style="flex:1">'+esc(d.name)+'</b>'
+      +(act?'<span class="chip">Active'+(act.roundsLeft?": "+act.roundsLeft+" round"+(act.roundsLeft===1?"":"s")+" left":"")+'</span><button class="btn sm" data-puend="'+esc(d.key)+'">End it</button>'
+        :pb?'<span class="chip">Active for the party</span>'
+        :'<button class="btn sm pri" data-puon="'+esc(d.key)+'">Activate</button>')+'</div>'
+      +'<div class="hint">'+esc(puEffects(d))+(d.party?" for every ally":"")+(d.rounds?", for "+d.rounds+" rounds":", for the rest of the fight")+(d.after?", then "+d.after:"")
+      +'. Once per '+d.per+(used&&!act?" (used)":"")+'.</div></div>';
+  });
+  if(ci){
+    h+='<div class="pu'+(c.changed?" on":"")+'"><div class="ihead"><b style="flex:1">'+esc(ci.name)+'</b>'
+      +(c.changed?'<span class="chip">Changed</span><button class="btn sm" data-chg="undo">Undo (GM)</button>'
+        :c.changePending?'<span class="chip">At your next Long Rest\u2026</span><button class="btn sm" data-chg="cancel">Never mind</button>'
+        :'<button class="btn sm dgr" data-chg="fed">Fed after midnight</button>')+'</div>'
+      +'<div class="hint">'+(c.changed?"Permanent: "+esc(ci.stats.map(function(s){return (s.n>0?"+":"")+s.n+" "+G_STATNAME[s.k]}).join(", "))+(ci.claw?", a "+esc(ci.claw.name)+" attack":"")+(ci.dis.length?". Disadvantage on "+esc(ci.dis.join(" and ")):"")+".":
+        c.changePending?"You ate after midnight. Your next Long Rest brings the Change, permanently.":"Eat after midnight and your next Long Rest brings the Change, permanently.")+'</div></div>';
+  }
+  if(mi){
+    var used=st.used["race:Multiply"], kids=(c.companions||[]).filter(function(x){return x.temp==="multiply"});
+    h+='<div class="pu'+(kids.length?" on":"")+'"><div class="ihead"><b style="flex:1">Multiply</b>'
+      +'<button class="btn sm pri" data-mult="1"'+'>Get wet on purpose</button>'+(mi.soak?'<button class="btn sm" data-mult="soak">Accidental soaking</button>':'')+'</div>'
+      +'<div class="hint">'+mi.count+' tiny '+esc(mi.what)+', each with '+mi.slots+' Health Bar slot and a '+mi.bite+' bite, as allies for the fight'+(mi.turns?". Each round, a d6 roll of 1 turns one against you":"")+'. Once per day'+(used?" (used)":"")+(kids.length?". Right now: "+kids.length+" ("+kids.filter(function(x){return x.hostile}).length+" hostile)":"")+'.</div></div>';
+  }
+  /* rounds to count, but no debuffs (whose section has the button): offer it here */
+  var timed=st.active.some(function(x){return x.roundsLeft})||(c.companions||[]).some(function(x){return x.temp==="multiply"&&!x.hostile});
+  if(timed&&!(c.debuffs||[]).length)h+='<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap"><button class="btn sm" id="dbTick">End of round</button><span class="hint">Counts down timers. Your GM\u2019s End round does this for you when you\u2019re connected.</span></div>';
+  return h+'</div>';
+}
+
 /* the Cursed-Fruit Corsair's element lock: only spells of the fruit's element,
    with Advantage on them. The element is read from the subclass Details. */
 function elementLock(c){
@@ -5153,12 +5901,12 @@ function castSpell(c,ix){
   var sp=c.spells[ix]; if(!sp)return;
   var lib=S.library.spells.find(function(l){return l.id===sp.libId})||gLib("spells",sp.name)||{};
   var nm=lib.name||sp.name||"Spell", rank=parseInt(sp.rank,10)||0;
-  var cost=parseInt(lib.mana,10)||0, cur=parseInt(c.manaCur,10)||0, mx=parseInt(c.enh.int||c.stats.int,10)||0;
-  if(cost>cur){toast("Not enough Mana to cast "+nm+". It needs "+cost+", you have "+cur+".","warn");return}
+  var sc=spellCost(c,parseInt(lib.mana,10)||0), cost=sc.cost, cur=parseInt(c.manaCur,10)||0, mx=parseInt(c.enh.int||c.stats.int,10)||0;
+  if(cost>cur){toast("Not enough Mana to cast "+nm+". It needs "+cost+(sc.why?" ("+sc.why+")":"")+", you have "+cur+".","warn");return}
   guardAction(c,/\battack\b/i.test(lib.type||"")?"castAttack":"cast",function(){checkLock(c,lib,nm,function(adv){
     c.manaCur=cur-cost; save(); renderSheet();
     recordUse(c,"Cast "+nm,"Rank "+rank+(cost?" \u00b7 \u2212"+cost+" Mana":" \u00b7 no Mana"));
-    castWindow(c,lib,nm,rank,{title:"You cast "+nm,line:"Rank "+rank+" \u00b7 "+(cost?"\u2212"+cost+" Mana, "+c.manaCur+" of "+mx+" left":"no Mana"),advFrom:adv});
+    castWindow(c,lib,nm,rank,{title:"You cast "+nm,line:"Rank "+rank+" \u00b7 "+(cost?"\u2212"+cost+" Mana"+(sc.why?" ("+sc.why+")":"")+", "+c.manaCur+" of "+mx+" left":"no Mana"),advFrom:adv});
   })});
 }
 /* the cast window, shared by casting and by spell scrolls: rolls what the
@@ -5499,9 +6247,13 @@ $("sheetBody").addEventListener("click",function(e){
       guardAction(rc,"attack",function(){rollCheck(rc,(ra.name||"Attack")+" to hit",[{l:"Rank",v:parseInt(ra.hitRank,10)||0},{l:(ra.hitStat||"").toUpperCase(),v:modOf(rc,ra.hitStat)}],"attack")});}
     else if(rk==="dmg"){var rd=rc.attacks.find(function(x){return x.id===rid}); if(!rd)return;
       var rx=rollExpr(rd.dmgDice); if(!rx){toast("Give "+(rd.name||"this attack")+" some damage dice first, like 1d8.","warn");return}
-      var dmm=modOf(rc,rd.dmgStat);
-      recordRoll(rc,{label:(rd.name||"Attack")+" damage",total:rx.total+dmm,nat:0,
-        detail:rx.text+(dmm?(dmm<0?" \u2212 ":" + ")+Math.abs(dmm)+" "+rd.dmgStat.toUpperCase():"")+(rd.effects?" \u00b7 "+rd.effects:""),tier:"",mode:"normal"});}
+      var dmm=modOf(rc,rd.dmgStat), mel=isMeleeRow(rd), extra=0, xt="";
+      var rg=rageInfo(rc), lostS=parseInt(rc.hbLost,10)||0;
+      if(rg&&mel&&lostS){extra+=rg*lostS;xt+=" + "+rg*lostS+" Rage ("+lostS+" slot"+(lostS>1?"s":"")+" lost)"}
+      puState(rc).active.forEach(function(a){if(a.melee&&!mel)return;if(a.dmg){extra+=a.dmg;xt+=" + "+a.dmg+" "+a.name}
+        if(a.dmgDice){var ex=rollExpr(a.dmgDice);if(ex){extra+=ex.total;xt+=" + "+ex.text+" "+a.name}}});
+      recordRoll(rc,{label:(rd.name||"Attack")+" damage",total:rx.total+dmm+extra,nat:0,
+        detail:rx.text+(dmm?(dmm<0?" \u2212 ":" + ")+Math.abs(dmm)+" "+rd.dmgStat.toUpperCase():"")+xt+(rd.effects?" \u00b7 "+rd.effects:""),tier:"",mode:"normal"});}
     return;
   }
   var ai=e.target.closest?e.target.closest("[data-atinfo]"):null;
@@ -5549,6 +6301,7 @@ $("sheetBody").addEventListener("click",function(e){
     ask("Advance "+(c.name||"this crawler")+" to Floor "+nf+"? Before you do: at the end of each floor, "
       +"roll an advancement check for every marked skill at Rank 5 or higher.","Advance",function(){
       var popEnd=floorEndPopularity(c,c.floor||1);
+      if(c.workshop&&(c.workshop.tables||[]).length)c.workshop.tables.forEach(function(tb){tb.tier=Math.min(10,(parseInt(tb.tier,10)||1)+1)});
       c.floor=nf;
       var line="Reached Floor "+nf;
       c.levelLog=c.levelLog?(c.levelLog+"\n"+line):line;
@@ -5606,15 +6359,39 @@ $("sheetBody").addEventListener("click",function(e){
   if(t.dataset.pop){changePopularity(c,+t.dataset.pop,"Adjusted by hand");save();renderSheet();return}
   if(t.dataset.fav){var fd=changeFavor(c,+t.dataset.fav,"Adjusted by hand");if(!fd)toast("The AI is riding you today: no AI Favor until a new day.","warn");save();renderSheet();return}
   if(t.id==="aiNewDay"){c.aiBlocked=false;popLog(c,"AI Favor",0,"A new day: the AI lets it go");save();renderSheet();return}
+  if(t.dataset.healon){var hd=healDefs(c).find(function(x){return x.key===t.dataset.healon});if(hd)activateHeal(c,hd);return}
+  if(t.dataset.phok||t.dataset.phno){var pid=t.dataset.phok||t.dataset.phno,ph=(c.pendingHeals||[]).find(function(x){return x.id===pid});if(!ph)return;
+    c.pendingHeals=c.pendingHeals.filter(function(x){return x!==ph});
+    if(t.dataset.phok){guardAction(c,"heal",function(){var r=healOne(c,ph.n,ph.clear);save();renderSheet();recordUse(c,ph.name+" from "+ph.from,(c.name||"You")+" "+r);toast((c.name||"You")+" "+r+".","good")});return}
+    save();renderSheet();return}
+  if(t.dataset.puon){var pd=powerupDefs(c).find(function(x){return x.key===t.dataset.puon});if(pd)activatePU(c,pd);return}
+  if(t.dataset.puend){var pa=puState(c).active.find(function(x){return x.key===t.dataset.puend});if(pa){var msg=puExpire(c,pa);save();renderSheet();toast(msg+".")}return}
+  if(t.dataset.chg==="fed"){ask("Eat after midnight? At your next Long Rest you go through the Change, permanently.","Eat it",function(){c.changePending=true;save();renderSheet();recordUse(c,"Ate after midnight","The Change comes at the next Long Rest")});return}
+  if(t.dataset.chg==="cancel"){c.changePending=false;save();renderSheet();return}
+  if(t.dataset.chg==="undo"){ask("Undo the Change? (Strictly, it\u2019s permanent: this is for mistakes.)","Undo it",function(){undoChange(c);save();renderSheet()});return}
+  if(t.dataset.mult){var hos=t.dataset.mult==="soak";
+    if(!hos&&puState(c).used["race:Multiply"]){ask("Multiply is once per day, and you\u2019ve used it. Do it anyway?","Do it anyway",function(){doMultiply(c,false)});return}
+    doMultiply(c,hos);return}
+  if(t.id==="tfOn"){guardAction(c,"use",function(){
+      var ti=transformInfo(c), F=c.floor||1; c.transformed=true;
+      if(ti&&ti.pop&&c.transformFloor!==F){c.transformFloor=F;changePopularity(c,ti.pop,"Transformed for the first time on Floor "+F)}
+      save(); renderSheet(); recordUse(c,"Transformed!",[ti.evade?"+"+ti.evade+" Evade":"",ti.dr?"+"+ti.dr+" DR":""].filter(Boolean).join(", "));
+      toast("Transformed! The world politely waited.","good")});return}
+  if(t.id==="tfOff"){c.transformed=false;save();renderSheet();toast("Transformed back.");return}
   if(t.id==="dbTick"){var to=tickCrawler(c);renderSheet();toast("End of round: "+(to.length?(c.name||"you")+" "+to.join(", ")+".":"nothing ticked."),to.length?"warn":"");return}
   if((t.id==="restShort"||t.id==="restLong")&&!t.dataset.ok){guardAction(c,"heal",function(){t.dataset.ok="1";t.click();delete t.dataset.ok});return}
   if(t.id==="restShort"){
-    c.hbLost=Math.max(0,(c.hbLost||0)-5);
+    /* a race or class can change it: "A Short Rest restores 3 Health Bar slots" */
+    var rsN=5, rsR=c.raceId&&S.library.races.find(function(x){return x.id===c.raceId}), rsK=gClassOf(c);
+    [rsR,rsK].forEach(function(e){var m=e&&String((e.abilities||"")+" "+(e.drawbacks||"")).match(/Short Rest restores (\d+) Health Bar slots/i);if(m)rsN=+m[1]});
+    c.hbLost=Math.max(0,(c.hbLost||0)-rsN);
     var mx=parseInt(c.enh.int||c.stats.int,10)||0;
     c.manaCur=Math.min(mx,(parseInt(c.manaCur,10)||0)+Math.floor(mx/2));
     save();renderSheet();return;
   }
   if(t.id==="restLong"){
+    puState(c).used={};
+    if(c.changePending){applyChange(c);toast("Overnight, you went through the Change.","warn");recordUse(c,"Went through the Change",(changeInfo(c)||{}).name||"")}
     c.hbLost=0;
     c.manaCur=parseInt(c.enh.int||c.stats.int,10)||0;
     c.debuffs=c.debuffs.filter(function(d){return (d.name||"").toLowerCase().indexOf("fatigue")<0});
@@ -5691,12 +6468,38 @@ function itemCat(it){
 function itemRarity(it){var l=libItem(it);return it.rarity||(l&&l.rarity)||""}
 function itemEffect(it){var l=libItem(it);return (l&&l.effect)||""}
 function noTransfer(it){var l=libItem(it);return /can.?t be (?:sold or )?(?:given|transferred|sold)|may not be sold or transferred/i.test((l&&(l.notes+" "+l.effect))||it.notes||"")}
-function isConsumable(it){var c=itemCat(it);if(isTome(it)||isSpellScroll(it))return true;return c==="Potion"||c==="Scroll"||/bandage|dynamite|grenade|bomb|food|ration|meal/i.test(it.name||"")}
+function isConsumable(it){var c=itemCat(it);if(isTome(it)||isSpellScroll(it))return true;return c==="Potion"||c==="Scroll"||/bandage|dynamite|grenade|bomb|explosive|charge|molotov|food|ration|meal/i.test(it.name||"")}
 function itemLabel(it){var q=parseInt(it.qty,10)||1;return it.name+(q>1?" \u00d7"+q:"")}
 function newItem(fields){return Object.assign({id:uid(),name:"",qty:1,weight:"",slot:"",notes:"",where:"inv",at:null,added:Date.now()},fields||{})}
 function itemFromLib(l,qty){return newItem({name:l.name,qty:qty||1,weight:l.weight||"",slot:l.slot||"",notes:(l.effect||"").slice(0,200),libId:l.id,category:l.category||"",rarity:l.rarity||""})}
 /* bring a crawler's inventory up to this model, once, and tidy it every time */
+/* the old paper-sheet Pet and Mount / vehicle blocks become Companions, once */
+var VEHICLE_WORDS=/\b(car|truck|bus|van|cart|golf|bike|motorcycle|scooter|boat|wagon|tank|jeep|limo|vehicle|tractor|kart|rv|camper|mech)\b/i;
+function rigHasData(r,keys){return !!r&&(String(r.name||"").trim()||(parseInt(r.lost,10)||0)>0||keys.some(function(k){return String(r[k]||"").trim()}))}
+function migrateRigs(c){
+  if(c.rigsMigrated)return; c.rigsMigrated=true; c.companions=c.companions||[];
+  var grants=[]; try{var gk=gClassOf(c);if(gk)grants=gCompanions(gk,"klass");var gr=c.raceId&&S.library.races.find(function(x){return x.id===c.raceId});if(gr)grants=grants.concat(gCompanions(gr,"race"))}catch(e){}
+  var match=function(nm){return grants.find(function(g){return gNorm(g.name)===gNorm(nm)})};
+  var pr=c.pet;
+  if(rigHasData(pr,["value","level","dr","evade","move","size","str","int","con","dex","cha","atk1","atk2","special"])){
+    var st={}; ["str","int","con","dex","cha"].forEach(function(k){st[k]=parseInt(pr[k],10)||({str:2,int:1,con:2,dex:2,cha:1})[k]});
+    var g1=match(pr.name);
+    var np=newCompanion("pet",{name:pr.name||"Pet",level:parseInt(pr.level,10)||1,size:sizeNum(pr.size)||2,stats:st,hbLost:parseInt(pr.lost,10)||0,
+      move:parseInt(pr.move,10)||"",drExtra:parseInt(pr.dr,10)||"",attitude:"Bonded",grantKey:g1?g1.grantKey:undefined,
+      notes:["From the old sheet",pr.atk2?"Attack: "+pr.atk2:"",pr.special?"Special: "+pr.special:"",pr.evade?"Evade "+pr.evade:"",pr.value?"Slot value "+pr.value:""].filter(Boolean).join(". ")});
+    var ba=attackFromText(pr.atk1); if(ba)np.baseAtk=ba; else if(String(pr.atk1||"").trim())np.notes+=". Main attack: "+pr.atk1;
+    c.companions.push(np);
+  }
+  var mr=c.mount;
+  if(rigHasData(mr,["value","size","occupants","move","dr","accessories"])){
+    var g2=match(mr.name), veh=!g2&&(VEHICLE_WORDS.test(mr.name||"")||String(mr.occupants||"").trim()||String(mr.accessories||"").trim());
+    c.companions.push(newCompanion(veh?"vehicle":"mount",{name:mr.name||(veh?"Vehicle":"Mount"),size:sizeNum(mr.size)||5,hbSlots:veh?(parseInt(mr.slots,10)||10):"",
+      hbLost:parseInt(mr.lost,10)||0,move:parseInt(mr.move,10)||(veh?"":30),drExtra:parseInt(mr.dr,10)||"",slotValue:mr.value||"",occupants:mr.occupants||"",
+      accessories:mr.accessories||"",attitude:veh?"":(g2?g2.attitude:"Friendly"),grantKey:g2?g2.grantKey:undefined,notes:veh?"":"From the old sheet"+(mr.value?". Slot value "+mr.value:"")}));
+  }
+}
 function ensureInv(c){
+  try{migrateRigs(c)}catch(e){}
   if(!c.inventory)c.inventory=[];
   if(!c.equipped)c.equipped={};
   if(!Array.isArray(c.equipped.accessories))c.equipped.accessories=[];
@@ -5779,7 +6582,8 @@ function statPicker(c,it,then){
 }
 /* equipping applies what the item's effect can be pinned down to; unequipping takes it back */
 function itemPlan(it){
-  var eff=itemEffect(it)||it.notes||"";
+  var lbl=(it.enchants||[]).map(function(e){return e.label}).join(". ");
+  var eff=itemEffect(it)?itemEffect(it)+(lbl?". "+lbl:""):(it.notes||"");
   if(it.statPick){var pp=grantPlan({id:"item:"+it.id,name:it.name,statBonus:"",skillBonus:"",abilities:"",drawbacks:"",drBonus:""},"item_"+it.id,{strict:true});
     pp.fixed=[{type:"stat",key:it.statPick,label:G_STATNAME[it.statPick],n:it.statN||statChoiceN(it)||0}];pp.dr=0;pp.abilities="";pp.items=[];pp.boxes=[];pp.natural=[];pp.size="";return pp}
   if(statChoiceN(it))eff=eff.replace(/\+\d+\s+to\s+(?:a|any|one)\s+Stat\b/ig,"");
@@ -6056,7 +6860,17 @@ function useItem(c,it,ok){
   var name=it.name||"item", eff=itemEffect(it)||it.notes||"", isPotion=itemCat(it)==="Potion", out=[];
   if(/earth hobby potion/i.test(name)){drinkHobby(c,c.inventory.indexOf(it));return}
   if(isTome(it)||isSpellScroll(it)){useTomeOrScroll(c,it);return}
-  if(skillPotionN(name)){potionOfSkill(c,it,skillPotionN(name));return}
+  if(skillPotionN(name)){
+    if((parseInt(c.skillPotions,10)||0)>=2){ask("The rulebook allows only two Skill potions in a crawler\u2019s whole life, and "+(c.name||"this crawler")+" has had "+c.skillPotions+". Drink it anyway?","Drink anyway",function(){potionOfSkill(c,it,skillPotionN(name))});return}
+    potionOfSkill(c,it,skillPotionN(name));return}
+  var spm=name.match(/Potion of \+(\d+) (Strength|Intelligence|Constitution|Dexterity|Charisma)\b/i);
+  if(spm){var drink=function(){var k=G_STATS[spm[2].toLowerCase()],n=+spm[1];
+      /* permanent: raises both the Score and the Enhanced value (when one is set) */
+      c.stats[k]=String((parseInt(c.stats[k],10)||0)+n); if(c.enh[k]!==""&&c.enh[k]!=null)c.enh[k]=String((parseInt(c.enh[k],10)||0)+n);
+      c.statPotions=(parseInt(c.statPotions,10)||0)+1; spendOne(c,it); save(); renderInv(); renderSheet();
+      recordUse(c,"Used "+name,G_STATNAME[k]+" +"+n+" (permanent)"); toast(G_STATNAME[k]+" is permanently "+c.stats[k]+".","good")};
+    if((parseInt(c.statPotions,10)||0)>=2)ask("The rulebook allows only two Stat potions in a crawler\u2019s whole life, and "+(c.name||"this crawler")+" has had "+c.statPotions+". Drink it anyway?","Drink anyway",drink);
+    else drink(); return}
   if(inFight()&&it.where==="inv")out.push("using it straight from your Inventory takes a Retrieve Action first");
   if(isPotion&&inFight()){
     var rd=S.encounter.round||1;
@@ -6137,6 +6951,7 @@ function potionOfSkill(c,it,n){
       var ex=gFind(c.skills,nm), now;
       if(ex){ex.rank=(parseInt(ex.rank,10)||0)+n;now=ex.rank}
       else{var l=gLib("skills",nm), sk=newSkill(l?l.name:nm,n);sk.notes="from a "+it.name;c.skills.push(sk);now=n;nm=sk.name}
+      c.skillPotions=(parseInt(c.skillPotions,10)||0)+1;
       spendOne(c,it); save(); closeModal(); renderInv(); renderSheet();
       recordUse(c,"Used "+it.name,nm+" +"+n+(ex?" (now Rank "+now+")":" (new, Rank "+now+")"));
       toast(nm+" is now Rank "+now+(ex?"":", a new skill")+"."+(now>15?" That\u2019s past the usual cap of 15, so check with your GM.":""),"good");
