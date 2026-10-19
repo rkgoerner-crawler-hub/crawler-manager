@@ -322,6 +322,14 @@ select{cursor:pointer}
 .syscard .btn{margin-top:16px;width:100%}
 @keyframes sysin{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.syscard,.gmlive i,.sysdot{animation:none}}
+.invcode{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:10px 12px;border:2px dashed var(--amber);border-radius:10px;background:var(--panel2)}
+.invcode span{font-family:var(--fm);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.invcode b{font-family:var(--fd);font-weight:400;font-size:24px;letter-spacing:.04em;color:var(--head);overflow-wrap:anywhere}
+.invqr{margin:14px auto 0;width:min(240px,100%);aspect-ratio:1;display:grid;place-items:center;background:#fff;border-radius:12px;padding:8px;border:1px solid var(--mortar)}
+.invqr svg{width:100%;height:auto;display:block}
+.invhero{text-align:center;padding:6px 4px 2px}
+.invhero-k{font-family:var(--fm);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal)}
+.invhero-c{font-family:var(--fd);font-size:clamp(26px,8vw,38px);line-height:1.1;margin:6px 0 8px;color:var(--head);text-shadow:2px 2px 0 var(--amber),0 0 18px var(--glow);overflow-wrap:anywhere}
 .lrow{border:1px solid var(--mortar);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel)}
 .lrow .ihead{display:flex;align-items:center;gap:6px;margin-bottom:6px}
 .lbox{margin-top:8px;padding:8px;border:1px dashed var(--mortar);border-radius:8px}
@@ -2737,15 +2745,15 @@ function renderParty(){
   }
   h+='<div class="bar" style="margin:0 0 12px"><h3>'+esc(cloud.gmCode)+'</h3><span class="sp"></span>'
     +'<span class="hint">live</span>'
-    +'<button class="btn sm pri" id="gAch">Award achievement</button><button class="btn sm pri" id="gLoot">Hand out loot</button><button class="btn sm" id="gClose">Close</button></div>';
+    +'<button class="btn sm pri" id="gInvite">Invite players</button><button class="btn sm pri" id="gAch">Award achievement</button><button class="btn sm pri" id="gLoot">Hand out loot</button><button class="btn sm" id="gClose">Close</button></div>';
   h+=libShareCard();
 
   var open=partyOpenId?partyRows.find(function(r){return r.id===partyOpenId}):null;
   if(open){ h+=partyDetail(open); h+='</div>'; host.innerHTML=h; return; }
 
   if(!partyRows.length){
-    h+='<div class="empty-note">No crawlers shared yet. Give your players the code <b>'+esc(cloud.gmCode)
-      +'</b>; they join it here in the Party tab and switch on <b>Share with GM</b>. Sheets appear here the moment they do.</div>';
+    h+='<div class="empty-note">No crawlers shared yet. <button class="btn sm pri" id="gInvite2">Invite players</button><br>Send them the invite link, or give them the code <b>'+esc(cloud.gmCode)
+      +'</b> to type in here in the Party tab. Their sheets appear here the moment they share them.</div>';
   }else{
     h+='<div class="pgrid">';
     partyRows.forEach(function(row){
@@ -2877,16 +2885,10 @@ $("partyBody").addEventListener("click",async function(e){
     }); return;
   }
   if(t.id==="pJoin"){
-    var code=($("pCamp").value||"").trim();
-    if(!CODE_RE.test(code)){toast("Campaign codes are 4\u201340 letters, numbers, dashes or underscores.","warn");return}
-    try{
-      if(!(await campaignLookup(code))){toast("No campaign with that code. Check it with your GM.","warn");return}
-    }catch(err){toast(cloudMsg(err),"warn");return}
-    cloud.campaign=code; cloudSaveCfg(); pushed={}; pushState={};
-    renderParty(); listenGMLibrary(); try{listenGifts()}catch(e){} try{listenPartyRolls()}catch(e){}
-    if(S.characters.some(function(c){return c.share}))await pushShared();
-    toast("Joined "+code+".","good"); renderParty(); return;
+    if(await joinCampaign(($("pCamp").value||"").trim()))renderParty();
+    return;
   }
+  if(t.id==="gInvite"||t.id==="gInvite2"){inviteWindow();return}
   if(t.id==="pSyncNow"){pushed={}; await pushShared(); renderParty(); return}
   if(t.id==="pLeave"){
     ask("Leave "+cloud.campaign+"? Your shared crawlers are removed from the GM's view.","Leave",async function(){
@@ -4184,15 +4186,17 @@ function renderSheet(){
     return '<option value="">—</option>'+STATS.map(function(t){
       return '<option value="'+t[0]+'"'+(sel===t[0]?" selected":"")+'>'+t[0].toUpperCase()+'</option>'}).join("");
   };
+  if(syncWeaponAttacks(c))save();
+  c.attacks.forEach(function(a){if(a.usesSkill&&a.weaponId){var wsk=gFind(c.skills,a.usesSkill);a.hitRank=wsk?String(wsk.rank):"0"}});
   c.attacks.forEach(function(a,ix){
     var hm=a.hitStat?statMod(c.enh[a.hitStat]||c.stats[a.hitStat]):null;
     var dm=a.dmgStat?statMod(c.enh[a.dmgStat]||c.stats[a.dmgStat]):null;
-    var hitTot=(parseInt(a.hitRank,10)||0)+(hm||0);
+    var hitTot=(parseInt(a.hitRank,10)||0)+(hm||0)+(parseInt(a.hitBonus,10)||0);
     h+='<div class="tr" data-ix="'+ix+'" style="grid-template-columns:1fr 52px 62px 54px 72px 62px 54px 1fr 40px 44px 28px 28px">'
       +'<input type="text" data-a="name" value="'+esc(a.name)+'">'
       +'<input type="number" data-a="hitRank" value="'+esc(a.hitRank)+'">'
       +'<select data-a="hitStat">'+statOpt(a.hitStat)+'</select>'
-      +'<span class="mono">'+((a.hitRank||hm)?("+"+hitTot):"—")+'</span>'
+      +'<span class="mono">'+((a.hitRank||hm||a.hitBonus)?("+"+hitTot):"—")+'</span>'
       +'<input type="text" data-a="dmgDice" value="'+esc(a.dmgDice)+'" placeholder="1d8">'
       +'<select data-a="dmgStat">'+statOpt(a.dmgStat)+'</select>'
       +'<span class="mono">'+(dm?("+"+dm):"—")+'</span>'
@@ -6519,7 +6523,8 @@ $("sheetBody").addEventListener("click",function(e){
       var rst=rs.stat&&rs.stat!=="none"?rs.stat:"";
       guardAction(rc,"check",function(){rollCheck(rc,(rs.name||"Skill")+" check",[{l:"Rank",v:parseInt(rs.rank,10)||0},{l:rst.toUpperCase(),v:modOf(rc,rst)}],"check")});}
     else if(rk==="hit"){var ra=rc.attacks.find(function(x){return x.id===rid}); if(!ra)return;
-      guardAction(rc,"attack",function(){rollCheck(rc,(ra.name||"Attack")+" to hit",[{l:"Rank",v:parseInt(ra.hitRank,10)||0},{l:(ra.hitStat||"").toUpperCase(),v:modOf(rc,ra.hitStat)}],"attack")});}
+      if(ra.usesSkill&&ra.weaponId){var rws=gFind(rc.skills,ra.usesSkill);ra.hitRank=rws?String(rws.rank):"0"}
+      guardAction(rc,"attack",function(){rollCheck(rc,(ra.name||"Attack")+" to hit",[{l:"Rank",v:parseInt(ra.hitRank,10)||0},{l:(ra.hitStat||"").toUpperCase(),v:modOf(rc,ra.hitStat)}].concat(ra.hitBonus?[{l:"Weapon",v:parseInt(ra.hitBonus,10)||0}]:[]),"attack")});}
     else if(rk==="dmg"){var rd=rc.attacks.find(function(x){return x.id===rid}); if(!rd)return;
       var rx=rollExpr(rd.dmgDice); if(!rx){toast("Give "+(rd.name||"this attack")+" some damage dice first, like 1d8.","warn");return}
       var dmm=modOf(rc,rd.dmgStat), mel=isMeleeRow(rd), extra=0, xt="";
@@ -6681,7 +6686,9 @@ $("sheetBody").addEventListener("click",function(e){
   var ix=parseInt(row.dataset.ix,10);
   if(t.dataset.d==="del"){c.debuffs.splice(ix,1);save();renderSheet();return}
   if(t.dataset.s==="del"){c.skills.splice(ix,1);save();renderSheet();return}
-  if(t.dataset.a==="del"){c.attacks.splice(ix,1);save();renderSheet();return}
+  if(t.dataset.a==="del"){var gone=c.attacks[ix];
+    if(gone&&gone.weaponId){var wit=c.inventory.find(function(x){return x.id===gone.weaponId});if(wit)wit.noAtk=true}
+    c.attacks.splice(ix,1);save();renderSheet();return}
   if(t.dataset.sp==="del"){c.spells.splice(ix,1);save();renderSheet();return}
   if(t.dataset.sp==="cast"){castSpell(c,ix);return}
 });
@@ -6869,6 +6876,51 @@ function itemPlan(it){
   return p;
 }
 function itemBonusText(p){return p.fixed.map(function(t){return (t.n>0?"+":"")+t.n+" "+t.label}).concat(p.dr?["+"+p.dr+" DR"]:[]).join(", ")}
+/* A weapon in a hand is an attack. "Enchanted Shotgun of the Lost" uses the
+   Shotgun skill: its Rank and stat to hit, its damage. A weapon the Library
+   has no skill for still attacks with the damage written on it. */
+var WEAPON_WORDS=/\b(sword|longsword|shortsword|axe|dagger|knife|spear|mace|club|hammer|staff|gun|handgun|shotgun|rifle|pistol|revolver|bow|crossbow|whip|blade|katana|flail|halberd|scythe|sickle|trident|lance|rapier|saber|sabre|cudgel|bat|machete|chainsaw|launcher|blaster|wand)s?\b/i;
+function weaponInfo(it){
+  var nm=" "+(it.name||"")+" ", best=null;
+  (S.library.skills||[]).forEach(function(sk){
+    if(!sk.name||!gAttackSkill(sk)||!gDamage(sk.damage))return;
+    if(/unarmed|slice attack|hand-to-hand|natural|throw/i.test(sk.name))return;
+    var re=new RegExp("\\b"+sk.name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"s?\\b","i");
+    if(re.test(nm)&&(!best||sk.name.length>best.name.length))best=sk;
+  });
+  var eff=(itemEffect(it)||it.notes||"")+" "+(it.enchants||[]).map(function(e){return e.label}).join(". ");
+  var dm=eff.match(/\+(\d+)\s*(?:to\s+)?damage\b/i), hm=eff.match(/\+(\d+)\s*to\s*hit\b/i);
+  var out=null;
+  if(best){var d=gDamage(best.damage);out={skill:best.name,stat:best.stat||d.stat||"",dice:d.dice,dmgStat:d.stat,type:d.type}}
+  else{var d2=gDamage(eff);
+    if(d2&&(/weapon/i.test((it.category||"")+" "+(it.slot||""))||WEAPON_WORDS.test(it.name||"")))
+      out={skill:"",stat:d2.stat||(/bow|gun|rifle|pistol|revolver|launcher|blaster|wand/i.test(it.name||"")?"dex":"str"),dice:d2.dice,dmgStat:d2.stat,type:d2.type}}
+  if(!out)return null;
+  out.dmgBonus=dm?+dm[1]:0; out.hitBonus=hm?+hm[1]:0;
+  return out;
+}
+function weaponAttack(c,it){
+  var w=weaponInfo(it); if(!w)return null;
+  var sk=w.skill?gFind(c.skills,w.skill):null;
+  return {name:it.name,hitRank:w.skill?(sk?String(sk.rank):"0"):"",hitStat:w.stat,hitBonus:w.hitBonus||0,
+    dmgDice:w.dice+(w.dmgBonus?"+"+w.dmgBonus:""),dmgStat:w.dmgStat,usesSkill:w.skill,weaponId:it.id,
+    effects:[w.type,w.skill?"uses your "+w.skill+" Rank"+(sk?"":" (you don\u2019t have it yet)"):"",w.hitBonus?"+"+w.hitBonus+" to hit":"",w.dmgBonus?"+"+w.dmgBonus+" damage":""].filter(Boolean).join("; ")};
+}
+/* weapons already in a hand (equipped before this existed, or the Library
+   learned the weapon's skill later) get their attack row too */
+function syncWeaponAttacks(c){
+  if(!c||!c.inventory)return false; var changed=false;
+  c.inventory.forEach(function(it){
+    if(it.where!=="equip"||(it.at!=="hand1"&&it.at!=="hand2")||it.noAtk)return;
+    if(c.attacks.some(function(a){return a.weaponId===it.id}))return;
+    var wa=weaponAttack(c,it); if(!wa||c.attacks.some(function(a){return gNorm(a.name)===gNorm(it.name)}))return;
+    wa.id=uid(); wa.fromGrant="item_"+it.id; c.attacks.push(wa);
+    c.grants=c.grants||{}; var rec=c.grants["item_"+it.id];
+    if(!rec)rec=c.grants["item_"+it.id]={entryId:"item:"+it.id,name:it.name,stats:{},skills:[],spells:[],dr:0,attacks:[],items:[],boxes:[]};
+    rec.attacks=rec.attacks||[]; rec.attacks.push(wa.id); changed=true;
+  });
+  return changed;
+}
 function equipItem(c,it,key){
   if(key==="hand2"&&c.equipped.twoHanded){toast("Your main hand needs both hands. Untick two-handed first.","warn");return}
   if(statChoiceN(it)&&!it.statPick){statPicker(c,it,function(one){equipItem(c,one,key)});return}
@@ -6876,18 +6928,28 @@ function equipItem(c,it,key){
   if((parseInt(it.qty,10)||1)>1){it.qty=(parseInt(it.qty,10)||1)-1;it=newItem({name:it.name,weight:it.weight,slot:it.slot,notes:it.notes,libId:it.libId,category:it.category,rarity:it.rarity});c.inventory.push(it)}
   if(it.where==="equip"&&it.at!==key)grantRevert(c,"item_"+it.id);
   it.where="equip";it.at=key;
-  var p=itemPlan(it), msg="";
-  if(p.fixed.length||p.dr){grantApply(c,p,[],[]);msg=": "+itemBonusText(p)}
+  var p=itemPlan(it), msg="", wa=(key==="hand1"||key==="hand2")?weaponAttack(c,it):null;
+  if(p.fixed.length||p.dr||wa){
+    grantApply(c,p,[],[]);
+    if(p.fixed.length||p.dr)msg=": "+itemBonusText(p);
+    if(wa&&!c.attacks.some(function(a){return a.weaponId===it.id||gNorm(a.name)===gNorm(it.name)})){
+      wa.id=uid(); wa.fromGrant="item_"+it.id; c.attacks.push(wa);
+      var rec=c.grants&&c.grants["item_"+it.id]; if(rec){rec.attacks=rec.attacks||[];rec.attacks.push(wa.id)}
+      msg+=(msg?"; ":": ")+"added to your Attacks"+(wa.usesSkill?" (uses your "+wa.usesSkill+" Rank)":"");
+    }
+  }
   syncInv(c);save();renderInv();renderSheet();
   toast("Equipped "+it.name+" ("+slotLabel(key)+")"+msg+".",msg?"good":"");
 }
 function unequipItem(c,it,quiet){
+  var recB=c.grants&&c.grants["item_"+it.id], onlyAtk=!!(recB&&!Object.keys(recB.stats||{}).length&&!(recB.skills||[]).length&&!recB.dr&&(recB.attacks||[]).length);
   var had=grantRevert(c,"item_"+it.id);
   it.where="inv";it.at=null;
   var same=c.inventory.find(function(x){return x!==it&&x.where==="inv"&&gNorm(x.name)===gNorm(it.name)&&(x.libId||"")===(it.libId||"")});
   if(same){same.qty=(parseInt(same.qty,10)||1)+(parseInt(it.qty,10)||1);c.inventory.splice(c.inventory.indexOf(it),1)}
   syncInv(c);
-  if(!quiet){save();renderInv();renderSheet();toast("Unequipped "+it.name+(had?", and took its bonuses off":"")+".")}
+  if(!quiet){save();renderInv();renderSheet();
+    toast("Unequipped "+it.name+(onlyAtk?", and took it off your Attacks":had?", and took its bonuses off":"")+".")}
 }
 function moveItem(c,it,where,at){
   if(it.where==="equip")grantRevert(c,"item_"+it.id);
@@ -7662,13 +7724,41 @@ function lootMake(e){
     return newItem({name:tomeName(w,e.kind,ls?ls.name:e.spell,r),category:e.kind==="tome"?"Spellbook":"Scroll",spellKind:e.kind,spellName:ls?ls.name:e.spell,spellLibId:ls?ls.id:null,spellRank:r})}
   return null;
 }
+/* the GM's device rolls a box's contents, so the GM decides (and sees) what's inside */
+function boxRoll(rarity){
+  if(!rarity)return null; var P=lootPools(rarity); if(!P.same.length&&!P.lower.length)return null;
+  var items=[], n=rnd(3);
+  for(var k=0;k<n;k++){var pool=(P.lower.length&&(!P.same.length||rnd(10)<=3))?P.lower:P.same;items.push(itemFromLib(pool[rnd(pool.length)-1],1))}
+  var gd=BOX_GOLD[rarity], gold=gd?rollExpr(gd[0]).total*gd[1]:0;
+  return {items:items,gold:gold};
+}
+function packBox(b){   /* fill an empty packed box; a box we can't roll for goes out for them to open */
+  if(!b.packed||(b.contents||[]).length||b.gold)return b;
+  var rr=boxRoll(b.rarity);
+  if(rr){b.contents=rr.items;b.gold=rr.gold;b.rolledByGM=true}else{b.packed=false;delete b.contents;b.unrollable=true}
+  return b;
+}
+function boxReport(who,b){
+  return {who:who,label:[b.rarity,b.name].filter(Boolean).join(" "),items:(b.contents||[]).map(itemLabel),gold:parseInt(b.gold,10)||0,packed:!!b.packed,rolled:!!b.rolledByGM}
+}
+function packedReport(rows){   /* show the GM what went in each box */
+  rows=rows.filter(function(r){return r.rolled||!r.packed}); if(!rows.length)return;
+  openModal('<h2 style="font-size:20px;margin-bottom:6px">What you packed</h2>'
+    +'<p class="hint" style="margin:0 0 10px">Rolled on your device. The players see it when they open their boxes.</p>'
+    +rows.map(function(r){return '<div class="lrow"><b>'+esc(r.who)+'</b> \u00b7 '+esc(r.label)
+      +(r.packed?'<div class="hint">'+esc(r.items.concat(r.gold?[r.gold.toLocaleString()+" Gold"]:[]).join(", ")||"Nothing. Brutal.")+'</div>'
+        :'<div class="hint" style="color:var(--rust)">Couldn\u2019t roll this one (no rarity, or no items of that rarity in your Library), so they\u2019ll open it themselves.</div>')+'</div>'}).join("")
+    +'<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn pri" id="prOk">Done</button></div>');
+  $("prOk").addEventListener("click",closeModal);
+}
 function lootPackage(entries){
   var pk={gmLoot:1,items:[],boxes:[],gold:0};
   entries.forEach(function(e){
     if(e.kind==="gold"){pk.gold+=Math.max(0,parseInt(e.amount,10)||0);return}
     if(e.kind==="box"){var b={id:uid(),name:e.name||"Loot box",rarity:e.rarity||"",why:e.why||"",fromGM:true};
       if(e.packed){b.packed=true;b.contents=(e.contents||[]).filter(function(x){return x.kind!=="gold"}).map(lootMake).filter(Boolean);
-        b.gold=(parseInt(e.gold,10)||0)+(e.contents||[]).filter(function(x){return x.kind==="gold"}).reduce(function(s,x){return s+(parseInt(x.amount,10)||0)},0)}
+        b.gold=(parseInt(e.gold,10)||0)+(e.contents||[]).filter(function(x){return x.kind==="gold"}).reduce(function(s,x){return s+(parseInt(x.amount,10)||0)},0);
+        packBox(b)}
       pk.boxes.push(b);return}
     var it=lootMake(e); if(it)pk.items.push(it);
   });
@@ -7705,9 +7795,10 @@ function lootWindow(){
       h+='<div class="grid g3" style="gap:6px"><input type="text" '+d+' data-lf="name" value="'+esc(e.name)+'" placeholder="Adventurer, Boss, Quest Box…">'
         +'<select '+d+' data-lf="rarity">'+[""].concat(RARITY).map(function(r){return '<option value="'+r+'"'+(e.rarity===r?" selected":"")+'>'+(r||"No rarity")+'</option>'}).join("")+'</select>'
         +'<input type="text" '+d+' data-lf="why" value="'+esc(e.why)+'" placeholder="Earned for…"></div>'
-        +'<div class="pill lpk"><button data-lpack="'+path+'" aria-pressed="'+!!e.packed+'">I’ll pack it</button><button data-lunpack="'+path+'" aria-pressed="'+!e.packed+'">Let them roll it</button></div>';
+        +'<div class="pill lpk"><button data-lpack="'+path+'" aria-pressed="'+!!e.packed+'">I’ll pack it</button><button data-lunpack="'+path+'" aria-pressed="'+!e.packed+'">They roll it</button></div>';
+      if(!e.packed)h+='<div class="hint" style="margin-top:4px">They roll what\u2019s inside on their own phone. Choose \u201cI\u2019ll pack it\u201d to decide (or roll) it yourself.</div>';
       if(e.packed){
-        h+='<div class="lbox"><div class="hint">Sealed until they open it.</div>'
+        h+='<div class="lbox"><div class="hint">Sealed until they open it. Leave it empty and it\u2019s filled with random '+esc(e.rarity||"")+' loot when you give it; you\u2019ll see what went in.</div>'
           +(e.contents||[]).map(function(x,i){return row(x,path+"."+i,true)}).join("")
           +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+LOOT_KINDS.filter(function(k){return k[0]!=="box"}).map(function(k){return '<button class="btn sm" data-ladd="'+k[0]+'" data-lin="'+path+'">+ '+k[1]+'</button>'}).join("")
           +(MAGIC_ROLLS[e.rarity]||e.rarity==="Bronze"?'<button class="btn sm pri" data-lrandom="'+path+'">Roll '+esc(e.rarity)+' loot</button>':'')+'</div></div>';
@@ -7760,9 +7851,10 @@ function lootWindow(){
         .find(function(e){return (e.kind==="tome"||e.kind==="scroll")&&!e.spell});
       if(bad){toast("Choose a spell for each spellbook and scroll.","warn");return}
       var pkProbe=lootPackage(LOOT.entries); if(!pkProbe.items.length&&!pkProbe.boxes.length&&!pkProbe.gold){toast("Add something to give.","warn");return}
-      var sent=0, local=0, failed=0, code=cloud.gmCode||rollCode();
+      var sent=0, local=0, failed=0, code=cloud.gmCode||rollCode(), report=[];
       targets.forEach(function(t){
         var pk=lootPackage(LOOT.entries);   /* fresh copies for each crawler */
+        pk.boxes.forEach(function(b){report.push(boxReport(t.name,b))});
         if(t.local){lootApply(t.local,pk);local++;recordUse(t.local,"Loot from the GM",lootSummary(pk));return}
         var rid=String(t.row.id), owner=rid.slice(0,Math.max(0,rid.length-String(t.row.char_id).length-1));
         if(!owner||!fbUser||owner===fbUser.uid){failed++;toast(t.name+" lives on your own account but not on this device. Open them here to give them loot.","warn");return}
@@ -7774,7 +7866,7 @@ function lootWindow(){
       });
       save(); renderInv(); renderSheet();
       var summary=lootSummary(lootPackage(LOOT.entries));
-      closeModal(); LOOT={to:LOOT.to,entries:[]};
+      closeModal(); LOOT={to:LOOT.to,entries:[]}; packedReport(report);
       toast("Handed out: "+summary+" → "+targets.length+" crawler"+(targets.length>1?"s":"")+(sent?" ("+sent+" on their own phones; it arrives automatically)":"")+".","good");
     });
   }
@@ -7898,7 +7990,7 @@ function achWindow(){
       +'<div class="lab" style="margin-top:10px">Reward</div><div style="display:flex;gap:6px;flex-wrap:wrap">'
       +'<select id="awRar" style="flex:1;min-width:140px"><option value="">No loot box</option>'+RARITY.map(function(r){return '<option'+(ACHW.rarity===r?" selected":"")+'>'+r+'</option>'}).join("")+'</select>'
       +'<input type="text" id="awBox" value="'+esc(ACHW.box)+'" placeholder="Adventurer Box" style="flex:2;min-width:150px"'+(ACHW.rarity?"":" disabled")+'></div>'
-      +'<p class="hint" style="margin:4px 0 0">The box arrives unopened, ready for them to open. To pack one yourself, use Hand out loot.</p>'
+      +'<p class="hint" style="margin:4px 0 0">You roll the box\u2019s random loot when you award it, and you\u2019ll see what\u2019s inside. To choose the contents yourself, use Hand out loot.</p>'
       +'<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" id="awPrev">Preview</button><span style="flex:1"></span><button class="btn" id="awNo">Cancel</button><button class="btn pri" id="awGo">Award it</button></div>';
   }
   function grab(){ACHW.name=$("awName").value;ACHW.desc=$("awDesc").value;ACHW.rarity=$("awRar").value;ACHW.box=$("awBox").value}
@@ -7918,10 +8010,11 @@ function achWindow(){
       grab(); var name=ACHW.name.trim(), targets=T.filter(function(t){return ACHW.to[t.key]});
       if(!targets.length){toast("Pick who earned it.","warn");return}
       if(!name){toast("Name the achievement.","warn");return}
-      var desc=ACHW.desc.trim(), rw=reward(), code=cloud.gmCode||rollCode(), sent=0;
+      var desc=ACHW.desc.trim(), rw=reward(), code=cloud.gmCode||rollCode(), sent=0, report=[];
       targets.forEach(function(t){
-        var pk={gmLoot:1,items:[],gold:0,boxes:ACHW.rarity?[{id:uid(),name:ACHW.box.trim()||"Adventurer Box",rarity:ACHW.rarity,why:"Achievement: "+name,fromGM:true}]:[],
+        var pk={gmLoot:1,items:[],gold:0,boxes:ACHW.rarity?[packBox({id:uid(),name:ACHW.box.trim()||"Adventurer Box",rarity:ACHW.rarity,why:"Achievement: "+name,fromGM:true,packed:true,contents:[],gold:0})]:[],
           ach:{name:name,desc:desc,reward:rw}};
+        pk.boxes.forEach(function(b){report.push(boxReport(t.name,b))});
         if(t.local){lootApply(t.local,pk);return}
         var rid=String(t.row.id), owner=rid.slice(0,Math.max(0,rid.length-String(t.row.char_id).length-1));
         if(!owner||!fbUser||owner===fbUser.uid){toast(t.name+" lives on your own account but not on this device. Open them here to award it.","warn");return}
@@ -7932,7 +8025,7 @@ function achWindow(){
       S.achMade=(S.achMade||[]).filter(function(m){return gNorm(m.name)!==gNorm(name)});
       S.achMade.unshift({name:name,desc:desc,rarity:ACHW.rarity,box:ACHW.box}); S.achMade=S.achMade.slice(0,60);
       try{postRound("use",targets.map(function(t){return t.name}).join(", ")+": New achievement!",name+(rw?" · "+rw:""))}catch(e){}
-      save(); closeModal();
+      save(); closeModal(); packedReport(report);
       toast("“"+name+"” awarded to "+targets.map(function(t){return t.name}).join(", ")+(sent?". It pops up on their screens automatically.":"."),"good");
       ACHW={to:ACHW.to,name:"",desc:"",rarity:"",box:"Adventurer Box"};
       achShowPending();
@@ -7987,7 +8080,7 @@ function gmTopHtml(){
       +'<span class="hint">Everything here works for crawlers on this device. To see the party\u2019s crawlers, send them loot and achievements, and watch their rolls live, '
       +(isGMUser()?'open your campaign':'sign in and open your campaign')+' in the Party tab.</span> <button class="btn sm pri" id="gmGoParty">'+(isGMUser()?"Open campaign":"Sign in")+'</button></div>';
   }else{
-    h+='<div class="gmhead"><span class="gmlive"><i></i>Live</span><b>'+esc(cloud.gmCode)+'</b><span class="hint">'+partyRows.length+' crawler'+(partyRows.length===1?"":"s")+' shared'
+    h+='<div class="gmhead"><span class="gmlive"><i></i>Live</span><b>'+esc(cloud.gmCode)+'</b><button class="btn sm pri" id="gmInvite">Invite players</button><span class="hint">'+partyRows.length+' crawler'+(partyRows.length===1?"":"s")+' shared'
       +(S.libShared&&S.libShared.code===cloud.gmCode?' \u00b7 Library '+(libOutOfDate()?'<span style="color:var(--rust)">changed since you shared it</span>':'shared '+esc(ago(S.libShared.at))):' \u00b7 Library not shared yet')+'</span></div>';
   }
   h+='<div class="gmacts">'
@@ -8067,6 +8160,92 @@ function sysShow(){
   if(!q.preview)try{if(navigator.vibrate)navigator.vibrate([60,40,60])}catch(e){}
   var ok=$("sysOk"); try{ok.focus({preventScroll:true})}catch(e){}
   ok.onclick=function(){SYS_Q.shift();sysShow()};
+}
+
+/* ================= Invites =================
+   The GM shares a link (or a QR code at the table). Opening it offers to join
+   the campaign in one tap; the code still works typed in by hand. */
+var QR_SRC="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";
+function inviteLink(code){return location.origin+location.pathname+"?join="+encodeURIComponent(code)}
+async function joinCampaign(code,opt){
+  opt=opt||{};
+  if(!CODE_RE.test(code)){toast("Campaign codes are 4–40 letters, numbers, dashes or underscores.","warn");return false}
+  try{if(!(await campaignLookup(code))){toast("No campaign with that code. Check it with your GM.","warn");return false}}
+  catch(err){toast(cloudMsg(err),"warn");return false}
+  var old=cloud.campaign;
+  if(old&&old!==code){try{await unshareRemote(S.characters.filter(function(c){return c.share}).map(function(c){return c.id}),old)}catch(e){}
+    if(libUnsub){try{libUnsub()}catch(e){}libUnsub=null;libUnsubCode=""}}
+  if(opt.shareAll)S.characters.forEach(function(c){c.share=true});
+  cloud.campaign=code; cloudSaveCfg(); pushed={}; pushState={}; save();
+  listenGMLibrary(); try{listenGifts()}catch(e){} try{listenPartyRolls()}catch(e){}
+  if(S.characters.some(function(c){return c.share}))await pushShared();
+  toast("Joined "+code+".","good");
+  if($("v-party").classList.contains("on"))renderParty();
+  return true;
+}
+function inviteWindow(){
+  var code=cloud.gmCode; if(!code){toast("Open your campaign in the Party tab first.","warn");return}
+  var link=inviteLink(code), local=location.protocol==="file:";
+  var msg="Join my Dungeon Crawler Carl game! Tap to join the party in Crawler Manager: "+link+"  (campaign code: "+code+")";
+  openModal('<h2 style="font-size:20px;margin-bottom:4px">Invite players</h2>'
+    +'<p class="hint" style="margin:0 0 12px">Anyone who opens this link can join <b>'+esc(code)+'</b> with one tap. No account needed.</p>'
+    +(local?'<p class="hint" style="color:var(--rust);margin:0 0 10px">You opened the app from a file on this device, so this link only works here. Open it from your GitHub site to get a link for players’ phones.</p>':'')
+    +'<div class="invcode"><span>Campaign code</span><b>'+esc(code)+'</b></div>'
+    +'<div style="display:flex;gap:6px;margin-top:10px"><input type="text" id="invLink" value="'+esc(link)+'" readonly style="flex:1;min-width:0;font-size:13px"><button class="btn pri" id="invCopy">Copy link</button></div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
+    +(navigator.share?'<button class="btn pri" id="invShare">Send invite…</button>':'')
+    +'<button class="btn" id="invCopyMsg">Copy a message with the link</button></div>'
+    +'<div class="invqr" id="invQr" aria-label="QR code for the invite link"><span class="hint">Loading QR code…</span></div>'
+    +'<p class="hint" style="text-align:center;margin:6px 0 0">At the table? Players point their phone camera here.</p>'
+    +'<div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" id="invDone">Done</button></div>');
+  $("invDone").addEventListener("click",closeModal);
+  $("invCopy").addEventListener("click",function(){copyText(link,$("invLink"),"Invite link copied.")});
+  $("invCopyMsg").addEventListener("click",function(){copyText(msg,null,"Invite message copied. Paste it in your group chat.")});
+  if($("invShare"))$("invShare").addEventListener("click",function(){
+    navigator.share({title:"Join "+code+" in Crawler Manager",text:"Join my Dungeon Crawler Carl game! Campaign code: "+code,url:link}).catch(function(){});
+  });
+  (window.qrcode?Promise.resolve():loadScript(QR_SRC)).then(function(){
+    var box=$("invQr"); if(!box)return;
+    try{var q=qrcode(0,"M");q.addData(link);q.make();box.innerHTML=q.createSvgTag({cellSize:6,margin:3})}
+    catch(e){box.innerHTML='<span class="hint">Couldn’t draw the QR code. Share the link instead.</span>'}
+  }).catch(function(){var box=$("invQr");if(box)box.innerHTML='<span class="hint">Couldn’t load the QR code. Share the link instead.</span>'});
+}
+function copyText(text,input,done){
+  function fallback(){try{var t=input||document.createElement("textarea");if(!input){t.value=text;document.body.appendChild(t)}
+    t.select();document.execCommand("copy");if(!input)t.remove();toast(done,"good")}catch(e){toast("Couldn’t copy. Select the text and copy it yourself.","warn")}}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){toast(done,"good")},fallback); else fallback();
+}
+/* someone opened an invite link */
+function inviteLanding(){
+  var code="";
+  try{code=(new URLSearchParams(location.search).get("join")||"").trim()}catch(e){}
+  if(!code)return;
+  function clean(){try{history.replaceState(null,"",location.pathname+location.hash)}catch(e){}}
+  if(!CODE_RE.test(code)){clean();toast("That invite link looks broken. Ask your GM for a new one, or type the code in the Party tab.","warn");return}
+  if(cloud.campaign===code){clean();toast("You’re already in "+code+".","good");return}
+  if(cloud.gmCode===code&&S.mode==="gm"){clean();toast("That’s the invite link for your own campaign. Send it to your players.");return}
+  var n=S.characters.length, old=cloud.campaign;
+  openModal('<div class="invhero"><div class="invhero-k">You’re invited</div><div class="invhero-c">'+esc(code)+'</div>'
+    +'<div class="hint">Your GM wants you in the dungeon. Join the party to share your crawler, get loot and achievements, and see everyone’s rolls.</div></div>'
+    +(old?'<p class="hint" style="margin:10px 0 0">You’re in <b>'+esc(old)+'</b> now. Joining moves you to <b>'+esc(code)+'</b>.</p>':'')
+    +(n?'<label class="hint" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="ivShare" checked style="width:auto"> Share my crawler'+(n>1?"s":"")+' with the GM ('+esc(S.characters.map(function(c){return c.name||"Unnamed"}).join(", "))+')</label>'
+      :'<p class="hint" style="margin:12px 0 0">You don’t have a crawler yet. After you join, you can make one.</p>')
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn" id="ivNo">Not now</button><button class="btn pri" id="ivYes">Join the party</button></div>');
+  $("ivNo").addEventListener("click",function(){clean();closeModal();toast("No problem. You can join later in the Party tab with the code "+code+".")});
+  $("ivYes").addEventListener("click",async function(){
+    var b=this; b.disabled=true; b.textContent="Joining…";
+    var share=$("ivShare")?$("ivShare").checked:false;
+    var ok=await joinCampaign(code,{shareAll:share});
+    if(!ok){b.disabled=false;b.textContent="Join the party";return}
+    clean();
+    if(S.mode!=="gm"||!isGMUser()){S.mode="player";save();applyMode()}
+    if(!S.characters.length){
+      openModal('<h2 style="font-size:20px;margin-bottom:6px">Welcome to '+esc(code)+'</h2><p style="margin:0 0 12px">Now make your crawler. Once it’s made, switch on <b>Share with GM</b> on its sheet.</p>'
+        +'<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="ivLater">Later</button><button class="btn pri" id="ivMake">Make my crawler</button></div>');
+      $("ivLater").addEventListener("click",closeModal);
+      $("ivMake").addEventListener("click",function(){closeModal();show("create")});
+    }else{closeModal();show("party")}
+  });
 }
 
 /* a player's device: loot from the GM arrives on its own */
@@ -8610,6 +8789,7 @@ load().then(function(){
     if(t.id==="gmFight"){show("encounter");return}
     if(t.id==="gmRound"){endRound();gmRefresh();return}
     if(t.id==="gmGoParty"){show("party");return}
+    if(t.id==="gmInvite"){inviteWindow();return}
     if(t.dataset.gmloot){gmPick("loot",t.dataset.gmloot);return}
     if(t.dataset.gmach){gmPick("ach",t.dataset.gmach);return}
     if(t.dataset.gmsheet){var k=t.dataset.gmsheet;
@@ -8623,6 +8803,7 @@ load().then(function(){
   $("gmBody").addEventListener("input",function(e){if(e.target.id==="gmNotes"){S.gmNotes=e.target.value;save()}});
   renderRoster();renderLib();
   if(appMode()==="gm")show("gm");
+  setTimeout(inviteLanding,300);   /* opened from an invite link */
   setTimeout(achShowPending,500);   /* an achievement that arrived but wasn't claimed yet */
 });
 })();
