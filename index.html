@@ -325,6 +325,7 @@ select{cursor:pointer}
 .invcode{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:10px 12px;border:2px dashed var(--amber);border-radius:10px;background:var(--panel2)}
 .invcode span{font-family:var(--fm);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 .invcode b{font-family:var(--fd);font-weight:400;font-size:24px;letter-spacing:.04em;color:var(--head);overflow-wrap:anywhere}
+.invcheck{margin-top:8px;font-size:13px;line-height:1.4}.invcheck .ok{color:var(--teal);font-weight:700}.invcheck .bad{color:var(--rust);font-weight:700}
 .invqr{margin:14px auto 0;width:min(240px,100%);aspect-ratio:1;display:grid;place-items:center;background:#fff;border-radius:12px;padding:8px;border:1px solid var(--mortar)}
 .invqr svg{width:100%;height:auto;display:block}
 .invhero{text-align:center;padding:6px 4px 2px}
@@ -8167,11 +8168,53 @@ function sysShow(){
    the campaign in one tap; the code still works typed in by hand. */
 var QR_SRC="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js";
 function inviteLink(code){return location.origin+location.pathname+"?join="+encodeURIComponent(code)}
+/* Can a player's phone get in? The GM's device signs in as a throwaway
+   anonymous player in a side connection and tries what a joining player does. */
+async function probePlayerAccess(code){
+  var fb=window.firebase; if(!fb||!fb.initializeApp||!cloud.config)return {ok:null};
+  var app=null, res={ok:true};
+  try{try{app=fb.app("cmProbe")}catch(e){app=fb.initializeApp(cloud.config,"cmProbe")}}catch(e){return {ok:null}}
+  var au=app.auth();
+  try{if(fb.auth&&fb.auth.Auth&&au.setPersistence)await au.setPersistence(fb.auth.Auth.Persistence.NONE)}catch(e){}
+  try{await au.signInAnonymously()}catch(e){return {ok:false,step:"signin",err:e}}
+  var db=app.firestore(), camp=db.collection("campaigns").doc(code);
+  try{var snap=await camp.get(); if(!snap.exists)res={ok:false,step:"missing"}}
+  catch(e){res={ok:false,step:"lookup",err:e}}
+  if(res.ok){try{await camp.collection("library").doc("meta").get()}catch(e){res={ok:false,step:"library",err:e}}}
+  if(res.ok){try{await camp.collection("rolls").orderBy("at","desc").limit(1).get()}catch(e){res={ok:false,step:"rolls",err:e}}}
+  try{await au.currentUser.delete()}catch(e){try{await au.signOut()}catch(e2){}}
+  return res;
+}
+function probeMessage(r,code){
+  if(!r||r.ok===null)return "";
+  if(r.ok)return '<span class="ok">✓ Checked: a player’s phone can find and join '+esc(code)+'.</span>';
+  var denied=/permission/i.test(String(r.err&&(r.err.code||r.err.message)||""));
+  if(r.step==="signin")return '<span class="bad">✗ Players can’t sign in. '+esc(cloudMsg(r.err,"anon"))+'</span>';
+  if(r.step==="missing")return '<span class="bad">✗ Firebase has no campaign called '+esc(code)+'. Create it again in the Party tab.</span>';
+  if(denied)return '<span class="bad">✗ Firebase is blocking players'+(r.step==="lookup"?" from finding your campaign":r.step==="library"?" from reading your shared Library":" from the dice feed")
+    +'. Publish the rules again: Firebase → Firestore Database → Rules, delete what’s there, paste in firestore-rules-paste.txt, and click Publish. Then reopen this window to check.</span>';
+  return '<span class="bad">✗ Couldn’t check: '+esc(cloudMsg(r.err))+'</span>';
+}
+/* a player's lookup that was refused: get a fresh sign-in and try again */
+async function campaignLookupRetry(code){
+  var isDenied=function(e){return /permission/i.test(String(e&&(e.code||e.message)||""))};
+  try{return await campaignLookup(code)}catch(err){
+    if(!isDenied(err))throw err;
+    try{if(fbAuth&&fbAuth.currentUser)await fbAuth.currentUser.getIdToken(true)}catch(e){}
+    try{return await campaignLookup(code)}catch(err2){
+      if(!isDenied(err2)||!fbAuth||!fbUser||!fbUser.isAnonymous||cloud.campaign)throw err2;
+      try{await fbAuth.signOut();await fbAuth.signInAnonymously();fbUser=fbAuth.currentUser}catch(e){throw err2}
+      return await campaignLookup(code);
+    }
+  }
+}
 async function joinCampaign(code,opt){
   opt=opt||{};
   if(!CODE_RE.test(code)){toast("Campaign codes are 4–40 letters, numbers, dashes or underscores.","warn");return false}
-  try{if(!(await campaignLookup(code))){toast("No campaign with that code. Check it with your GM.","warn");return false}}
-  catch(err){toast(cloudMsg(err),"warn");return false}
+  try{if(!(await campaignLookupRetry(code))){toast("No campaign with that code. Check it with your GM.","warn");return false}}
+  catch(err){toast(/permission/i.test(String(err&&(err.code||err.message)||""))
+      ?"Couldn\u2019t join: the campaign\u2019s database turned your phone away. Ask your GM to open Invite players, which checks their Firebase setup."
+      :cloudMsg(err),"warn");return false}
   var old=cloud.campaign;
   if(old&&old!==code){try{await unshareRemote(S.characters.filter(function(c){return c.share}).map(function(c){return c.id}),old)}catch(e){}
     if(libUnsub){try{libUnsub()}catch(e){}libUnsub=null;libUnsubCode=""}}
@@ -8191,6 +8234,7 @@ function inviteWindow(){
     +'<p class="hint" style="margin:0 0 12px">Anyone who opens this link can join <b>'+esc(code)+'</b> with one tap. No account needed.</p>'
     +(local?'<p class="hint" style="color:var(--rust);margin:0 0 10px">You opened the app from a file on this device, so this link only works here. Open it from your GitHub site to get a link for players’ phones.</p>':'')
     +'<div class="invcode"><span>Campaign code</span><b>'+esc(code)+'</b></div>'
+    +'<div class="invcheck" id="invCheck">'+(window.firebase&&window.firebase.initializeApp?'<span class="hint">Checking that players can join\u2026</span>':'')+'</div>'
     +'<div style="display:flex;gap:6px;margin-top:10px"><input type="text" id="invLink" value="'+esc(link)+'" readonly style="flex:1;min-width:0;font-size:13px"><button class="btn pri" id="invCopy">Copy link</button></div>'
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'
     +(navigator.share?'<button class="btn pri" id="invShare">Send invite…</button>':'')
@@ -8199,6 +8243,7 @@ function inviteWindow(){
     +'<p class="hint" style="text-align:center;margin:6px 0 0">At the table? Players point their phone camera here.</p>'
     +'<div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" id="invDone">Done</button></div>');
   $("invDone").addEventListener("click",closeModal);
+  probePlayerAccess(code).then(function(r){var el=$("invCheck");if(el)el.innerHTML=probeMessage(r,code)}).catch(function(){var el=$("invCheck");if(el)el.innerHTML=""});
   $("invCopy").addEventListener("click",function(){copyText(link,$("invLink"),"Invite link copied.")});
   $("invCopyMsg").addEventListener("click",function(){copyText(msg,null,"Invite message copied. Paste it in your group chat.")});
   if($("invShare"))$("invShare").addEventListener("click",function(){
